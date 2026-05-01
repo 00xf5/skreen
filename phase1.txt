@@ -1,0 +1,242 @@
+🎯 PHASE 1 GOAL (very strict)
+
+You are ONLY building:
+
+Agent connects to server ✅
+Server tracks agents ✅
+Web dashboard shows agents online ✅
+You can send a command → agent executes → returns output ✅
+
+👉 No screen streaming
+👉 No remote mouse
+👉 No overengineering
+
+🧱 SYSTEM OVERVIEW
+Agent (Go)  ←→  Server (Go)  ←→  Controller (Web)
+
+Protocol:
+👉 WebSocket ONLY (keep life simple)
+
+📁 PROJECT STRUCTURE (don’t freestyle this)
+🖥️ Server (Go)
+/server
+  /cmd
+    main.go
+  /internal
+    /ws        # websocket handling
+    /agent     # agent registry
+    /auth      # tokens (simple for now)
+    /commands  # command routing
+💻 Agent (Go)
+/agent
+  main.go
+  ws.go        # connection logic
+  exec.go      # command execution
+  heartbeat.go
+🌐 Controller (Web)
+/controller
+  /src
+    App.jsx
+    Agents.jsx
+    Terminal.jsx
+⚙️ COMPONENT BREAKDOWN
+🧠 1. SERVER (the brain)
+🔹 Responsibilities
+Accept WebSocket connections
+Identify agents
+Store active agents
+Route messages
+Send commands
+🔌 WebSocket Endpoint
+ws://yourserver/ws
+🧠 Agent Registry (IMPORTANT)
+
+In memory for now:
+
+type Agent struct {
+    ID        string
+    Conn      *websocket.Conn
+    LastSeen  time.Time
+}
+
+Store in:
+
+map[string]*Agent
+📩 Message Format (DON’T CHANGE RANDOMLY)
+
+Keep it clean JSON:
+
+{
+  "type": "register",
+  "agent_id": "abc123"
+}
+Other message types:
+{ "type": "heartbeat" }
+
+{ "type": "command", "command": "whoami" }
+
+{ "type": "result", "output": "root" }
+🔄 Flow (Server side)
+Agent connects
+Sends register
+Server stores agent
+Controller requests agent list
+Controller sends command
+Server forwards to agent
+Agent responds → server → controller
+🤖 2. AGENT (your little soldier)
+🔹 Responsibilities
+Connect to server
+Register itself
+Stay alive (heartbeat)
+Execute commands
+Send results
+🔌 Connection Logic
+ws://server/ws
+
+Auto-reconnect:
+👉 if connection drops → retry every 5s
+
+🧠 Register on connect
+{
+  "type": "register",
+  "agent_id": "unique-machine-id"
+}
+
+👉 Generate ID:
+
+hostname + random hash
+OR
+persistent UUID file
+❤️ Heartbeat
+
+Every 10–20 seconds:
+
+{ "type": "heartbeat" }
+⚙️ Command Execution
+
+When receiving:
+
+{ "type": "command", "command": "whoami" }
+
+Run:
+
+Windows → cmd /C
+Linux → /bin/sh -c
+
+Return:
+
+{
+  "type": "result",
+  "output": "femonla"
+}
+
+⚠️ Don’t overcomplicate:
+No sandbox yet, just raw execution (you’re testing your own machines anyway).
+
+🌐 3. CONTROLLER (your dashboard)
+🔹 Responsibilities
+Connect to server
+Show agent list
+Send commands
+Display results
+🔌 WebSocket connection
+
+Same endpoint:
+
+ws://server/ws
+🖥️ UI PAGES
+1. Agents List
+Show:
+agent_id
+status (online/offline)
+2. Terminal View
+Select agent
+Input command
+Show output
+🔄 Controller Flow
+Connect to server
+Request agents:
+{ "type": "list_agents" }
+Receive:
+{
+  "type": "agents",
+  "data": ["agent1", "agent2"]
+}
+Send command:
+{
+  "type": "command",
+  "agent_id": "agent1",
+  "command": "whoami"
+}
+Display result
+🔐 MINIMAL SECURITY (don’t be reckless)
+
+At least:
+
+Add a shared secret key
+
+Agent sends:
+
+{ "type": "register", "token": "SECRET123" }
+
+Server verifies before accepting.
+
+⚡ PERFORMANCE (yes even in phase 1)
+Use goroutines per connection
+Don’t block message loop
+Keep everything async
+🧪 TESTING PLAN (don’t skip)
+Step 1:
+
+Run server
+
+Step 2:
+
+Run 2 agents
+
+Step 3:
+
+Open controller
+
+👉 You should see both agents
+
+Step 4:
+
+Send:
+
+whoami
+
+👉 Get response
+
+Step 5:
+
+Kill agent
+
+👉 Should disappear after timeout
+
+🧠 COMMON MISTAKES (don’t be that guy)
+
+❌ Mixing controller + server logic
+❌ Blocking WebSocket loop
+❌ No reconnect logic
+❌ No heartbeat
+❌ Random message formats
+
+🚀 WHAT YOU’LL HAVE AFTER PHASE 1
+
+A working system that:
+
+Tracks machines
+Executes remote commands
+Handles multiple clients
+Feels like a mini C2 server
+😈 Real talk
+
+If you finish this cleanly…
+
+👉 You’ve already built:
+
+A legit remote admin tool
+A base for automation systems
+A foundation for serious bug hunting tools

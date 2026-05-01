@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # ── Caddy: Reverse Proxy & TLS Termination ──
+  caddy:
+    image: caddy:2.7.5-alpine
+    container_name: scon_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      # Mount the built frontend static files
+      - ./controller/dist:/srv/frontend
+
+  # ── Coturn: WebRTC Relay (TURN/STUN) ──
+  coturn:
+    image: coturn/coturn:4.6.2-r0
+    container_name: scon_turn
+    restart: unless-stopped
+    network_mode: "host" # Required for mapping the dynamic UDP ports for WebRTC efficiently
+    environment:
+      # These will be read by coturn
+      - TURN_PORT=3478
+      - TURN_PORT_TLS=5349
+      - TURN_SECRET=scon_super_secret_webrtc_key
+      - TURN_REALM=scon.local
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf
+
+volumes:
+  caddy_data:
+  caddy_config:

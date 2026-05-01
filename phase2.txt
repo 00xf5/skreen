@@ -1,0 +1,315 @@
+ PHASE 2 GOAL (keep it tight)
+Add:
+
+
+📸 Screen capture on agent
+
+
+📡 Stream to controller
+
+
+⚡ Low latency (not perfect, just usable)
+
+
+🎮 Optional: basic input (later)
+
+
+👉 Start LOW FPS (5–10 fps)
+👉 Stability > quality
+
+🧠 ARCHITECTURE UPGRADE
+You are NOT replacing WebSocket. You are ADDING WebRTC.
+Agent  ←──── WebRTC (video stream) ────→  Controller   │                                         │   └──── WebSocket (signaling/control) ──────┘                    ↓                 Server
+
+⚙️ WHY WEBRTC (don’t fight it)
+If you try:
+
+
+raw WebSocket streaming ❌ → lag city
+
+
+HTTP MJPEG ❌ → inefficient
+
+
+👉 WebRTC gives you:
+
+
+built-in video compression (VP8/H264)
+
+
+NAT traversal (STUN/TURN)
+
+
+low latency
+
+
+
+🧱 NEW COMPONENTS
+
+🧠 1. SERVER (SIGNALING ONLY)
+Your server stays dumb (important).
+New responsibility:
+
+
+Exchange WebRTC messages:
+
+
+SDP offers
+
+
+answers
+
+
+ICE candidates
+
+
+
+
+
+🔩 Add message types
+{ "type": "webrtc_offer", "agent_id": "...", "sdp": "..." }{ "type": "webrtc_answer", "agent_id": "...", "sdp": "..." }{ "type": "ice_candidate", "agent_id": "...", "candidate": "..." }
+
+🔄 Flow
+
+
+Controller → Server: “start stream”
+
+
+Server → Agent: request
+
+
+Agent creates offer
+
+
+Controller responds with answer
+
+
+ICE candidates exchanged
+
+
+👉 Server just forwards. NO processing.
+
+🤖 2. AGENT (THE HARD PART)
+
+🔩 Core Modules (new)
+📸 Screen Capture Engine
+Options (ranked):
+🥇 Best (Go-friendly)
+
+
+kbinani/screenshot
+
+
+robotgo
+
+
+🥈 Advanced
+
+
+DirectX (Windows)
+
+
+X11 (Linux)
+
+
+
+🎥 Encoding Layer
+👉 DO NOT send raw images
+Use:
+
+
+WebRTC track (VP8 default)
+
+
+OR encode frames manually (harder)
+
+
+
+📡 WebRTC Peer Connection
+Use Go library:
+
+
+pion/webrtc 🔥
+
+
+
+🧠 Agent Flow
+1. Receive "start_stream"2. Create PeerConnection3. Capture screen frames4. Push frames into video track5. Send SDP offer6. Wait for answer7. Start streaming
+
+🧪 Pseudo Code (Agent)
+peerConnection, _ := webrtc.NewPeerConnection(config)videoTrack, _ := webrtc.NewTrackLocalStaticSample(    webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8},    "video", "screen",)peerConnection.AddTrack(videoTrack)// Capture loopgo func() {    for {        frame := CaptureScreen()        encoded := Encode(frame)        videoTrack.WriteSample(media.Sample{            Data: encoded,            Duration: time.Millisecond * 100,        })    }}()
+
+⚠️ You’ll need:
+
+
+frame resizing
+
+
+compression tuning
+
+
+
+🌐 3. CONTROLLER (React)
+
+🔩 Add WebRTC client
+Browser already supports WebRTC (easy mode here 😎)
+
+🧠 Flow
+1. User clicks "View Screen"2. Create RTCPeerConnection3. Receive offer from agent4. Send answer5. Display video stream
+
+🧪 JS Example
+const pc = new RTCPeerConnection()pc.ontrack = (event) => {  video.srcObject = event.streams[0]}await pc.setRemoteDescription(offer)const answer = await pc.createAnswer()await pc.setLocalDescription(answer)
+
+📡 SIGNALING FLOW (FULL)
+Controller → Server → Agent   : start_streamAgent → Server → Controller   : SDP offerController → Server → Agent   : SDP answerBoth exchange ICE candidatesWebRTC connection establishedVideo flows directly (P2P or via TURN)
+
+⚡ PERFORMANCE RULES (ignore = lag simulator)
+
+1. Start LOW QUALITY
+
+
+Resolution: 720p → drop to 480p if needed
+
+
+FPS: 5–10
+
+
+
+2. Resize before sending
+1920x1080 → 960x540
+
+3. Frame skipping
+Don’t send every frame:
+if time.Since(lastFrame) < 100ms {    continue}
+
+4. CPU control
+Screen capture is expensive.
+👉 Use:
+
+
+region capture (optional)
+
+
+adaptive FPS
+
+
+
+🌍 NETWORK REALITY (don’t ignore this)
+You’ll need:
+🧊 STUN server (free)
+
+
+stun:stun.l.google.com:19302
+
+
+
+🔥 TURN server (important later)
+Without TURN:
+👉 some connections will FAIL behind NAT
+Use:
+
+
+coturn (self-hosted)
+
+
+
+🔐 SECURITY UPDATES
+Now that you’re streaming:
+Add:
+
+
+session tokens per stream
+
+
+permission check before starting stream
+
+
+stream timeout
+
+
+
+🧪 MVP IMPLEMENTATION PLAN
+
+✅ Step 1
+Add signaling messages to server
+
+✅ Step 2
+Controller can request stream
+
+✅ Step 3
+Agent creates PeerConnection
+
+✅ Step 4
+Hardcode:
+
+
+low FPS
+
+
+low resolution
+
+
+
+✅ Step 5
+Display video in browser
+
+❌ DO NOT ADD YET
+
+
+audio
+
+
+recording
+
+
+multi-stream
+
+
+fancy UI
+
+
+
+🧠 COMMON MISTAKES (you WILL hit these)
+❌ Trying to send raw JPEG frames
+❌ Not handling ICE candidates properly
+❌ Ignoring NAT → “it works locally but not online 😭”
+❌ High FPS too early
+❌ Blocking capture loop
+
+😈 Real talk
+This phase separates:
+
+
+“I can code”
+from
+
+
+“I can build real-time systems”
+
+
+
+🚀 After Phase 2
+You’ll have:
+
+
+Real remote viewing
+
+
+Near real-time interaction
+
+
+A legit ScreenConnect core
+
+
+
+👉 If you want next
+I can:
+
+
+Give you working pion/webrtc + screenshot integration code
+
+
+Or design remote mouse/keyboard control (Phase 2.5, very spicy)
+
+
+Just say the word.

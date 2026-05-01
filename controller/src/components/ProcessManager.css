@@ -1,0 +1,114 @@
+.proc-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.proc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.proc-search {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.proc-search:focus { border-color: var(--border-active); }
+.proc-search::placeholder { color: var(--text-muted); }
+
+.proc-refresh {
+  padding: 7px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.proc-refresh:hover { border-color: var(--border-active); color: var(--text-bright); }
+.proc-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.proc-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.proc-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.proc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.proc-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-surface);
+}
+
+.proc-table th {
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.proc-table td {
+  padding: 7px 14px;
+  border-bottom: 1px solid rgba(0,200,200,0.05);
+  transition: background 0.1s;
+}
+
+.proc-table tr:hover td { background: var(--brand-glow); }
+.proc-table tr.killing td { opacity: 0.5; }
+
+.proc-name { color: var(--text-bright); font-weight: 500; font-family: 'Courier New', monospace; }
+.proc-pid { color: var(--text-muted); font-family: 'Courier New', monospace; }
+.proc-mem { color: var(--brand); font-family: 'Courier New', monospace; text-align: right; }
+
+.kill-btn {
+  padding: 3px 10px;
+  background: rgba(255,77,106,0.08);
+  border: 1px solid rgba(255,77,106,0.2);
+  border-radius: 4px;
+  color: var(--danger);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 600;
+}
+.kill-btn:hover { background: rgba(255,77,106,0.2); }
+.kill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.proc-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 32px !important;
+  font-size: 0.85rem;
+}

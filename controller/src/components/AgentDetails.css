@@ -1,0 +1,138 @@
+/* AgentDetails — SCON Branded */
+.agent-details {}
+
+.details-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.details-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.back-btn {
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.back-btn:hover { border-color: var(--border-active); color: var(--text-bright); }
+
+.status-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-badge.online { background: rgba(0,200,150,0.15); color: var(--success); }
+.status-badge.offline { background: rgba(255,77,106,0.15); color: var(--danger); }
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.detail-row span:first-child { color: var(--text-muted); }
+.detail-row span:last-child { color: var(--text-bright); font-weight: 500; }
+
+.privilege-indicator { margin-bottom: 10px; }
+
+.priv-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.priv-badge.admin { background: rgba(255,184,77,0.15); color: var(--warning); }
+.priv-badge.system { background: rgba(255,77,106,0.15); color: var(--danger); }
+.priv-badge.user { background: rgba(0,200,150,0.15); color: var(--success); }
+
+.detail-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.elevate-btn {
+  padding: 6px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.elevate-btn:hover { border-color: var(--border-active); color: var(--brand); }
+
+/* Toggle Switch */
+.toggle-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  display: inline-block;
+}
+
+.switch input { opacity: 0; width: 0; height: 0; }
+
+.slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: var(--transition);
+}
+
+.switch input:checked + .slider { background: var(--brand-dim); border-color: var(--brand); }
+.switch input:checked + .slider::before { transform: translateX(16px); background: var(--brand); }
+
+.danger-actions { display: flex; gap: 8px; }
+.detail-card.danger { border-color: rgba(255,77,106,0.2); }
+.detail-card.danger h4 { color: var(--danger); }

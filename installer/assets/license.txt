@@ -1,0 +1,33 @@
+SKREEN REMOTE ACCESS AGENT
+END USER LICENSE AGREEMENT
+
+PLEASE READ THIS AGREEMENT CAREFULLY BEFORE PROCEEDING.
+
+By installing the Skreen Agent software, you agree to the terms of this End User
+License Agreement. If you do not agree, do not install this software.
+
+1. GRANT OF PERMISSION
+   A technician from your organisation or a trusted support provider has sent you
+   this installer. By proceeding, you grant that technician temporary permission
+   to view and control this computer for the purposes of providing remote support.
+
+2. WHAT THIS SOFTWARE DOES
+   The Skreen Agent establishes an encrypted connection to a remote server and
+   allows an authorised operator to view your screen, control your mouse and
+   keyboard, execute system commands, and transfer files, solely for the purposes
+   of providing IT support.
+
+3. DATA AND PRIVACY
+   All sessions are logged for audit purposes. No personal data is transmitted
+   beyond what is necessary for the remote support session. You may terminate
+   the session at any time by uninstalling this software.
+
+4. UNINSTALLATION
+   You may remove this software at any time via Settings > Apps > Skreen Agent,
+   or by using the uninstaller located in the Skreen folder in your Start Menu.
+
+5. NO WARRANTY
+   This software is provided "as is", without warranty of any kind. The publisher
+   shall not be liable for any damages arising from the use of this software.
+
+By clicking "I Agree", you confirm that you understand and accept these terms.

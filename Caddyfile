@@ -1,0 +1,23 @@
+# Caddyfile for SCON Platform
+
+:80 {
+    # 1. Serve frontend static files
+    handle_path /* {
+        root * /srv/frontend
+        file_server
+        try_files {path} /index.html
+    }
+
+    # 2. Proxy API requests to Go server
+    handle_path /api/* {
+        reverse_proxy host.docker.internal:8080
+    }
+
+    # 3. Proxy WebSocket connections
+    handle_path /ws {
+        reverse_proxy host.docker.internal:8080
+    }
+    
+    # Enable GZIP compression for faster load times
+    encode gzip zstd
+}

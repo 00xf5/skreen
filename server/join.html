@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join Session — SCON</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0f14;
+      --surface: #111a22;
+      --surface2: #152028;
+      --border: rgba(0,200,200,0.12);
+      --border-active: rgba(0,200,200,0.4);
+      --brand: #00c8c8;
+      --brand-dim: rgba(0,200,200,0.12);
+      --brand-glow: 0 0 32px rgba(0,200,200,0.2);
+      --text: #c5d0dc;
+      --text-bright: #e8f0f8;
+      --text-muted: #5a7080;
+      --success: #00c896;
+      --danger: #ff4d6a;
+      --warning: #ffb84d;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,200,200,0.07) 0%, transparent 60%);
+    }
+
+    /* Brand header */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 48px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: var(--brand-dim);
+      border: 1px solid var(--border-active);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .brand-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.03em;
+    }
+
+    .brand-name span { color: var(--brand); }
+
+    /* Card */
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4), var(--brand-glow);
+    }
+
+    .card-header {
+      padding: 32px 36px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .card-header p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .card-body { padding: 32px 36px; }
+
+    /* Screens */
+    .screen { display: none; flex-direction: column; gap: 20px; }
+    .screen.active { display: flex; }
+
+    /* Code input */
+    .code-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .code-input-wrap {
+      position: relative;
+    }
+
+    .code-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-bright);
+      font-size: 1.6rem;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.12em;
+      text-align: center;
+      padding: 18px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      text-transform: uppercase;
+    }
+
+    .code-input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(0,200,200,0.1);
+    }
+
+    .code-input.valid { border-color: var(--success); }
+    .code-input.invalid { border-color: var(--danger); }
+
+    /* Validation status */
+    .validation-msg {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      min-height: 22px;
+    }
+    .validation-msg.checking { color: var(--text-muted); }
+    .validation-msg.valid { color: var(--success); }
+    .validation-msg.invalid { color: var(--danger); }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Session info card (Screen 2) */
+    .session-info {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .session-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+    }
+    .session-row .key { color: var(--text-muted); }
+    .session-row .val { color: var(--text-bright); font-weight: 500; }
+
+    .trust-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: rgba(0,200,200,0.06);
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-size: 0.82rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .trust-notice .icon { font-size: 1rem; margin-top: 1px; flex-shrink: 0; }
+
+    /* Download screen */
+    .download-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .download-icon { font-size: 2.4rem; }
+    .download-name { font-size: 1rem; font-weight: 700; color: var(--text-bright); }
+    .download-meta { font-size: 0.78rem; color: var(--text-muted); }
+
+    .signed-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,200,150,0.1);
+      border: 1px solid rgba(0,200,150,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    /* Steps */
+    .steps { display: flex; flex-direction: column; gap: 10px; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--brand-dim);
+      border: 1px solid var(--border-active);
+      color: var(--brand);
+      font-weight: 700;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* Waiting screen */
+    .waiting-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 0;
+    }
+
+    .pulse-ring {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 2px solid var(--brand);
+      animation: pulse-ring 1.8s ease-out infinite;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+    }
+
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(0,200,200,0.4); }
+      70% { box-shadow: 0 0 0 20px rgba(0,200,200,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,200,200,0); }
+    }
+
+    .waiting-status {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .waiting-status strong { display: block; font-size: 1rem; color: var(--text-bright); margin-bottom: 4px; }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--brand);
+      color: #0a0f14;
+    }
+    .btn-primary:hover { filter: brightness(1.15); box-shadow: 0 4px 20px rgba(0,200,200,0.3); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; box-shadow: none; }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--border-active); color: var(--text-bright); }
+
+    .btn-success {
+      background: var(--success);
+      color: #0a0f14;
+    }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Countdown */
+    .countdown {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .countdown span { color: var(--warning); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <div class="brand">
+    <div class="brand-icon">⚡</div>
+    <div class="brand-name">S<span>CON</span></div>
+  </div>
+
+  <div class="card">
+    <!-- Screen 1: Enter Code -->
+    <div id="s1" class="screen active">
+      <div class="card-header">
+        <h1>Join Remote Session</h1>
+        <p>Enter the access code provided by your technician</p>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="code-label">Access Code</div>
+          <div class="code-input-wrap">
+            <input
+              id="codeInput"
+              class="code-input"
+              type="text"
+              maxlength="9"
+              placeholder="XXXX-XXXX"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <div id="validationMsg" class="validation-msg" style="margin-top:10px;"></div>
+        </div>
+
+        <button id="joinBtn" class="btn btn-primary" disabled onclick="doValidate()">
+          Continue →
+        </button>
+
+        <div class="divider">Don't have a code?</div>
+        <p style="text-align:center;font-size:0.82rem;color:var(--text-muted);">
+          Ask your support technician to generate one for you.
+        </p>
+      </div>
+    </div>
+
+    <!-- Screen 2: Session Preview (Trust Builder) -->
+    <div id="s2" class="screen">
+      <div class="card-header">
+        <h1>You're joining a session</h1>
+        <p>Review the details below before continuing</p>
+      </div>
+      <div class="card-body">
+        <div class="session-info">
+          <div class="session-row">
+            <span class="key">Company</span>
+            <span class="val" id="infoCompany">—</span>
+          </div>
+          <div class="session-row">
+            <span class="key">Technician</span>
+            <span class="val" id="infoTech">—</span>
+          </div>
+          <div class="session-row">
+            <span class="key">Session Type</span>
+            <span class="val" id="infoType">—</span>
+          </div>
+          <div class="session-row">
+            <span class="key">Code</span>
+            <span class="val" id="infoCode" style="color:var(--brand);font-family:monospace;">—</span>
+          </div>
+        </div>
+
+        <div class="trust-notice">
+          <span class="icon">🛡</span>
+          <span>This will allow <strong>screen viewing and remote control</strong> of your device. You can end the session at any time by closing the agent application.</span>
+        </div>
+
+        <div id="s2Countdown" class="countdown"></div>
+
+        <button class="btn btn-primary" onclick="goToScreen('s3')">
+          Continue — Download Agent
+        </button>
+        <button class="btn btn-outline" onclick="goToScreen('s1')">
+          ← Back
+        </button>
+      </div>
+    </div>
+
+    <!-- Screen 3: Download -->
+    <div id="s3" class="screen">
+      <div class="card-header">
+        <h1>Download SCON Agent</h1>
+        <p>Run the agent to connect to your session</p>
+      </div>
+      <div class="card-body">
+        <div class="download-box">
+          <div class="download-icon">⬇️</div>
+          <div class="download-name">scon-agent.exe</div>
+          <div class="download-meta" id="osDetect">Detected: Windows</div>
+          <div class="signed-badge">✓ Signed &amp; Verified</div>
+        </div>
+
+        <button class="btn btn-primary" id="dlBtn" onclick="doDownload()">
+          Download for Windows
+        </button>
+
+        <div class="divider">After downloading</div>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <span>Locate the downloaded <strong>scon-agent.exe</strong> file</span>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <span>Right-click the file and select <strong>"Run as administrator"</strong></span>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <span>Click <strong>"Yes"</strong> on the Windows security prompt</span>
+          </div>
+        </div>
+
+        <button class="btn btn-outline" onclick="goToScreen('s4')">
+          I've launched the agent →
+        </button>
+      </div>
+    </div>
+
+    <!-- Screen 4: Waiting -->
+    <div id="s4" class="screen">
+      <div class="card-header">
+        <h1>Waiting for connection</h1>
+        <p>Keep the agent application running</p>
+      </div>
+      <div class="card-body">
+        <div class="waiting-indicator">
+          <div class="pulse-ring" id="waitIcon">⚡</div>
+          <div class="waiting-status">
+            <strong id="waitStatus">Waiting for agent...</strong>
+            <span id="waitSub">Launch the downloaded scon-agent.exe to connect</span>
+          </div>
+        </div>
+
+        <div class="divider">Didn't work?</div>
+
+        <button class="btn btn-outline" onclick="goToScreen('s3')">
+          ⬇ Download again
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SERVER = 'http://localhost:8080'
+    let currentCode = ''
+    let sessionData = null
+    let validateTimer = null
+    let countdownTimer = null
+
+    // Auto-format code input as XXXX-XXXX
+    const codeInput = document.getElementById('codeInput')
+    codeInput.addEventListener('input', (e) => {
+      let v = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+      if (v.length > 4) v = v.slice(0, 4) + '-' + v.slice(4, 8)
+      e.target.value = v
+
+      clearTimeout(validateTimer)
+      setMsg('', '')
+      document.getElementById('joinBtn').disabled = true
+
+      if (v.length === 9) {
+        setMsg('checking', '⏳ Checking code...')
+        validateTimer = setTimeout(() => checkCode(v), 600)
+      }
+    })
+
+    // Also handle paste
+    codeInput.addEventListener('paste', () => setTimeout(() => codeInput.dispatchEvent(new Event('input')), 10))
+
+    function setMsg(type, text) {
+      const el = document.getElementById('validationMsg')
+      el.className = 'validation-msg ' + type
+      el.innerHTML = text
+      codeInput.className = 'code-input' + (type === 'valid' ? ' valid' : type === 'invalid' ? ' invalid' : '')
+    }
+
+    async function checkCode(code) {
+      try {
+        const res = await fetch(`${SERVER}/api/invite/validate?code=${encodeURIComponent(code)}`)
+        const data = await res.json()
+        if (data.valid) {
+          sessionData = data
+          currentCode = code
+          setMsg('valid', '✅ Code valid — click Continue')
+          document.getElementById('joinBtn').disabled = false
+        } else {
+          setMsg('invalid', '❌ ' + (data.error || 'Invalid code'))
+        }
+      } catch {
+        setMsg('invalid', '❌ Could not reach server')
+      }
+    }
+
+    function doValidate() {
+      if (!sessionData) return
+      document.getElementById('infoCompany').textContent = sessionData.company
+      document.getElementById('infoTech').textContent = sessionData.technician
+      document.getElementById('infoType').textContent = sessionData.session_type
+      document.getElementById('infoCode').textContent = currentCode
+
+      // Countdown timer
+      if (countdownTimer) clearInterval(countdownTimer)
+      const expiry = sessionData.expires_at * 1000
+      const tick = () => {
+        const rem = Math.max(0, Math.floor((expiry - Date.now()) / 1000))
+        const m = Math.floor(rem / 60)
+        const s = rem % 60
+        document.getElementById('s2Countdown').innerHTML =
+          `⏱ This code expires in <span>${m}:${s.toString().padStart(2,'0')}</span>`
+        if (rem === 0) clearInterval(countdownTimer)
+      }
+      tick()
+      countdownTimer = setInterval(tick, 1000)
+
+      goToScreen('s2')
+    }
+
+    function doDownload() {
+      const url = `${SERVER}/download/agent?code=${encodeURIComponent(currentCode)}`
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'scon-agent.exe'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+
+      // After 2s, show "now click next"
+      setTimeout(() => {
+        document.getElementById('dlBtn').textContent = '✅ Downloaded — launch the file'
+        document.getElementById('dlBtn').className = 'btn btn-success'
+        document.getElementById('dlBtn').onclick = () => goToScreen('s4')
+      }, 2000)
+    }
+
+    function goToScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
+      document.getElementById(id).classList.add('active')
+      if (id === 's4') startPolling()
+    }
+
+    // Poll server for agent connection after code used
+    let pollInterval = null
+    function startPolling() {
+      if (pollInterval) clearInterval(pollInterval)
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`${SERVER}/api/invite/validate?code=${encodeURIComponent(currentCode)}`)
+          const data = await res.json()
+          // If code is now invalid/used, agent has connected
+          if (data.error === 'code already used') {
+            clearInterval(pollInterval)
+            document.getElementById('waitIcon').textContent = '✅'
+            document.getElementById('waitIcon').style.borderColor = 'var(--success)'
+            document.getElementById('waitIcon').style.animation = 'none'
+            document.getElementById('waitStatus').textContent = '✅ Connected! Session is live.'
+            document.getElementById('waitSub').textContent = 'Your technician can now see your screen.'
+          }
+        } catch {}
+      }, 2000)
+    }
+
+    // OS detection for download button label
+    const ua = navigator.userAgent
+    if (ua.includes('Mac')) {
+      document.getElementById('osDetect').textContent = 'Detected: macOS'
+      document.getElementById('dlBtn').textContent = 'Download for macOS'
+    } else if (ua.includes('Linux')) {
+      document.getElementById('osDetect').textContent = 'Detected: Linux'
+      document.getElementById('dlBtn').textContent = 'Download for Linux'
+    }
+
+    // Auto-fill code from URL: /join/XXXX-XXXX
+    const pathParts = window.location.pathname.split('/')
+    const pathCode = pathParts[pathParts.length - 1]
+    if (pathCode && pathCode.includes('-') && pathCode.length === 9) {
+      codeInput.value = pathCode
+      codeInput.dispatchEvent(new Event('input'))
+    }
+  </script>
+</body>
+</html>

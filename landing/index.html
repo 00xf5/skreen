@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Skreen — Remote Access for Operators</title>
+<meta name="description" content="Skreen is a self-hosted remote access platform built for IT teams. Persistent agents, real-time screen sharing, and full command execution — no third-party cloud."/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='4' width='28' height='20' rx='2' fill='none' stroke='%23000' stroke-width='2.5'/%3E%3Cline x1='16' y1='24' x2='16' y2='29' stroke='%23000' stroke-width='2.5'/%3E%3Cline x1='10' y1='29' x2='22' y2='29' stroke='%23000' stroke-width='2.5'/%3E%3Cline x1='20' y1='10' x2='24' y2='14' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='11' cy='14' r='3' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --black:#0a0a0a;
+  --mid:#4a4a4a;
+  --light:#888;
+  --border:#e2e2e2;
+  --bg:#ffffff;
+  --off:#f7f7f5;
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--black);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+/* ── Layout ── */
+.container{max-width:1080px;margin:0 auto;padding:0 40px}
+
+/* ── Nav ── */
+nav{
+  border-bottom:1px solid var(--border);
+  height:60px;
+  display:flex;
+  align-items:center;
+  position:sticky;
+  top:0;
+  background:var(--bg);
+  z-index:50;
+}
+.nav-inner{
+  max-width:1080px;
+  margin:0 auto;
+  padding:0 40px;
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.logo{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.logo-mark{
+  width:28px;
+  height:28px;
+  flex-shrink:0;
+}
+.logo-name{
+  font-family:'DM Serif Display',serif;
+  font-size:1.35rem;
+  letter-spacing:-0.02em;
+  color:var(--black);
+  font-style:italic;
+}
+.nav-links{
+  display:flex;
+  align-items:center;
+  gap:32px;
+  list-style:none;
+}
+.nav-links a{
+  font-size:0.875rem;
+  color:var(--mid);
+  transition:color 0.15s;
+}
+.nav-links a:hover{color:var(--black)}
+.nav-cta{
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+.btn-ghost{
+  font-size:0.875rem;
+  color:var(--mid);
+  transition:color 0.15s;
+}
+.btn-ghost:hover{color:var(--black)}
+.btn-solid{
+  font-size:0.875rem;
+  font-weight:500;
+  background:var(--black);
+  color:#fff;
+  padding:9px 20px;
+  border:none;
+  cursor:pointer;
+  transition:opacity 0.15s;
+  font-family:'Inter',sans-serif;
+  letter-spacing:0.01em;
+  display:inline-block;
+}
+.btn-solid:hover{opacity:0.82}
+
+/* ── Hero ── */
+.hero{
+  padding:100px 0 80px;
+  border-bottom:1px solid var(--border);
+}
+.hero-label{
+  font-size:0.78rem;
+  font-weight:500;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--light);
+  margin-bottom:28px;
+}
+.hero h1{
+  font-family:'DM Serif Display',serif;
+  font-size:clamp(2.8rem,6vw,5rem);
+  line-height:1.06;
+  letter-spacing:-0.03em;
+  color:var(--black);
+  max-width:760px;
+  margin-bottom:28px;
+}
+.hero h1 em{
+  font-style:italic;
+  color:var(--mid);
+}
+.hero-body{
+  max-width:520px;
+  font-size:1.05rem;
+  color:var(--mid);
+  line-height:1.7;
+  margin-bottom:44px;
+  font-weight:300;
+}
+.hero-actions{
+  display:flex;
+  align-items:center;
+  gap:24px;
+}
+.link-arrow{
+  font-size:0.875rem;
+  color:var(--mid);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  transition:color 0.15s;
+}
+.link-arrow:hover{color:var(--black)}
+.hero-meta{
+  margin-top:56px;
+  padding-top:32px;
+  border-top:1px solid var(--border);
+  display:flex;
+  gap:48px;
+}
+.hero-stat-num{
+  font-family:'DM Serif Display',serif;
+  font-size:2rem;
+  letter-spacing:-0.03em;
+  color:var(--black);
+}
+.hero-stat-label{
+  font-size:0.82rem;
+  color:var(--light);
+  margin-top:2px;
+}
+
+/* ── Section base ── */
+section{padding:88px 0;border-bottom:1px solid var(--border)}
+.section-label{
+  font-size:0.75rem;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--light);
+  font-weight:500;
+  margin-bottom:48px;
+}
+h2.section-heading{
+  font-family:'DM Serif Display',serif;
+  font-size:clamp(2rem,4vw,3rem);
+  letter-spacing:-0.025em;
+  line-height:1.1;
+  color:var(--black);
+  max-width:640px;
+}
+
+/* ── What is Skreen ── */
+.what-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0;
+  border-top:1px solid var(--border);
+  margin-top:56px;
+}
+.what-item{
+  padding:40px 0;
+  border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border);
+}
+.what-item:nth-child(even){border-right:none;padding-left:48px}
+.what-item:nth-child(odd){padding-right:48px}
+.what-item:nth-last-child(-n+2){border-bottom:none}
+.what-num{
+  font-size:0.72rem;
+  font-weight:500;
+  letter-spacing:0.08em;
+  color:var(--light);
+  margin-bottom:16px;
+}
+.what-title{
+  font-size:1.05rem;
+  font-weight:500;
+  color:var(--black);
+  margin-bottom:10px;
+  letter-spacing:-0.01em;
+}
+.what-body{
+  font-size:0.9rem;
+  color:var(--mid);
+  line-height:1.65;
+  font-weight:300;
+}
+
+/* ── How it works ── */
+.how-steps{
+  margin-top:60px;
+  counter-reset:step;
+}
+.how-step{
+  display:grid;
+  grid-template-columns:56px 1fr;
+  gap:0 32px;
+  padding:36px 0;
+  border-top:1px solid var(--border);
+  align-items:start;
+}
+.how-step:last-child{border-bottom:1px solid var(--border)}
+.how-step-num{
+  font-family:'DM Serif Display',serif;
+  font-size:1.6rem;
+  color:var(--border);
+  line-height:1;
+  letter-spacing:-0.04em;
+  padding-top:3px;
+}
+.how-step-title{
+  font-size:1rem;
+  font-weight:500;
+  color:var(--black);
+  letter-spacing:-0.01em;
+  margin-bottom:8px;
+}
+.how-step-body{
+  font-size:0.9rem;
+  color:var(--mid);
+  line-height:1.65;
+  font-weight:300;
+  max-width:560px;
+}
+
+/* ── Capabilities ── */
+.cap-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:0;
+  border-top:1px solid var(--border);
+  margin-top:60px;
+}
+.cap-item{
+  padding:40px 40px 40px 0;
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+}
+.cap-item:nth-child(3n){border-right:none;padding-right:0;padding-left:0}
+.cap-item:nth-child(3n+2){padding-left:40px}
+.cap-item:nth-last-child(-n+3){border-bottom:none}
+.cap-name{
+  font-size:0.9rem;
+  font-weight:500;
+  color:var(--black);
+  margin-bottom:8px;
+  letter-spacing:-0.01em;
+}
+.cap-desc{
+  font-size:0.85rem;
+  color:var(--mid);
+  line-height:1.6;
+  font-weight:300;
+}
+
+/* ── Who it's for ── */
+.audience-list{
+  margin-top:56px;
+  border-top:1px solid var(--border);
+}
+.audience-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  padding:28px 0;
+  border-bottom:1px solid var(--border);
+  gap:40px;
+}
+.audience-role{
+  font-size:1rem;
+  font-weight:500;
+  color:var(--black);
+  min-width:200px;
+  letter-spacing:-0.01em;
+}
+.audience-desc{
+  font-size:0.9rem;
+  color:var(--mid);
+  line-height:1.6;
+  font-weight:300;
+  max-width:580px;
+}
+
+/* ── Why self-hosted ── */
+.selfhosted-body{
+  margin-top:40px;
+  max-width:700px;
+}
+.selfhosted-body p{
+  font-size:1rem;
+  color:var(--mid);
+  line-height:1.75;
+  font-weight:300;
+  margin-bottom:20px;
+}
+.selfhosted-body strong{
+  color:var(--black);
+  font-weight:500;
+}
+
+/* ── CTA ── */
+.cta-section{
+  padding:100px 0;
+  border-bottom:1px solid var(--border);
+}
+.cta-section h2{
+  font-family:'DM Serif Display',serif;
+  font-size:clamp(2rem,4vw,3.2rem);
+  letter-spacing:-0.03em;
+  line-height:1.08;
+  max-width:580px;
+  margin-bottom:36px;
+  color:var(--black);
+}
+.cta-section h2 em{
+  font-style:italic;
+  color:var(--mid);
+}
+.cta-note{
+  margin-top:20px;
+  font-size:0.82rem;
+  color:var(--light);
+}
+
+/* ── Footer ── */
+footer{
+  padding:48px 0;
+}
+.footer-inner{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.footer-left .logo-name{font-size:1.1rem}
+.footer-copy{
+  font-size:0.8rem;
+  color:var(--light);
+  margin-top:6px;
+}
+.footer-links{
+  display:flex;
+  gap:28px;
+  list-style:none;
+}
+.footer-links a{
+  font-size:0.82rem;
+  color:var(--light);
+  transition:color 0.15s;
+}
+.footer-links a:hover{color:var(--black)}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .container,.nav-inner{padding:0 24px}
+  .nav-links{display:none}
+  .hero{padding:64px 0 56px}
+  .hero h1{font-size:2.4rem}
+  .hero-meta{gap:28px;flex-wrap:wrap}
+  .what-grid{grid-template-columns:1fr}
+  .what-item{border-right:none!important;padding:32px 0!important}
+  .cap-row{grid-template-columns:1fr}
+  .cap-item{border-right:none;padding:32px 0!important}
+  .audience-item{flex-direction:column;gap:10px}
+  .footer-inner{flex-direction:column;gap:24px;align-items:flex-start}
+  .how-step{grid-template-columns:40px 1fr;gap:0 20px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <svg class="logo-mark" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1.5" y="1.5" width="25" height="18" rx="2.5" stroke="#0a0a0a" stroke-width="1.8"/>
+        <line x1="1.5" y1="6" x2="26.5" y2="6" stroke="#0a0a0a" stroke-width="1.4"/>
+        <line x1="14" y1="19.5" x2="14" y2="24" stroke="#0a0a0a" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="9" y1="24" x2="19" y2="24" stroke="#0a0a0a" stroke-width="1.8" stroke-linecap="round"/>
+        <rect x="6" y="9.5" width="6" height="5" rx="1" stroke="#0a0a0a" stroke-width="1.4"/>
+        <line x1="15" y1="10.5" x2="22" y2="10.5" stroke="#0a0a0a" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="15" y1="13" x2="20" y2="13" stroke="#0a0a0a" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <span class="logo-name">Skreen</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#what">Platform</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#capabilities">Capabilities</a></li>
+      <li><a href="#who">Who it's for</a></li>
+    </ul>
+    <div class="nav-cta">
+      <a href="/login" class="btn-ghost">Sign in</a>
+      <a href="/signup" class="btn-solid">Get started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-label">Remote access infrastructure</div>
+    <h1>
+      Your machines,<br/>
+      under your <em>control.</em>
+    </h1>
+    <p class="hero-body">
+      Skreen is a self-hosted remote administration platform for teams that need reliable, 
+      persistent access to their endpoints — without routing sensitive sessions through 
+      someone else's cloud.
+    </p>
+    <div class="hero-actions">
+      <a href="/signup" class="btn-solid">Start for free</a>
+      <a href="#how" class="link-arrow">See how it works &#x2192;</a>
+    </div>
+    <div class="hero-meta">
+      <div>
+        <div class="hero-stat-num">100%</div>
+        <div class="hero-stat-label">Self-hosted. Your servers.</div>
+      </div>
+      <div>
+        <div class="hero-stat-num">&lt;50ms</div>
+        <div class="hero-stat-label">Typical command latency</div>
+      </div>
+      <div>
+        <div class="hero-stat-num">No SaaS</div>
+        <div class="hero-stat-label">No vendor lock-in</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── What is Skreen ── -->
+<section id="what">
+  <div class="container">
+    <div class="section-label">The platform</div>
+    <h2 class="section-heading">Built differently from the start</h2>
+    <div class="what-grid">
+      <div class="what-item">
+        <div class="what-num">01</div>
+        <div class="what-title">Persistent agents, not sessions</div>
+        <div class="what-body">The Skreen agent installs silently and survives reboots. It registers itself to your controller on startup and stays ready — no user action required on the remote end.</div>
+      </div>
+      <div class="what-item">
+        <div class="what-num">02</div>
+        <div class="what-title">Your infrastructure, your rules</div>
+        <div class="what-body">Deploy the Skreen server on any machine you own. No data leaves your network unless you decide otherwise. Compliance, data residency, and audit requirements stay within your control.</div>
+      </div>
+      <div class="what-item">
+        <div class="what-num">03</div>
+        <div class="what-title">Real-time screen access</div>
+        <div class="what-body">WebRTC-based screen streaming delivers low-latency video of the remote desktop. No plugins, no viewer software — your operator sees the endpoint directly in their browser.</div>
+      </div>
+      <div class="what-item">
+        <div class="what-num">04</div>
+        <div class="what-title">Full command execution</div>
+        <div class="what-body">Run shell commands, PowerShell scripts, or system queries against any connected agent from an in-browser terminal. Output is streamed back immediately over a persistent WebSocket connection.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ── -->
+<section id="how">
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2 class="section-heading">From install to connected in under two minutes</h2>
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="how-step-num">01</div>
+        <div>
+          <div class="how-step-title">Deploy the Skreen server</div>
+          <div class="how-step-body">Run the Skreen server binary or Docker container on any machine with a public IP or domain. It listens for agent connections and serves the operator controller. A Caddy reverse proxy configuration is included for HTTPS termination out of the box.</div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">02</div>
+        <div>
+          <div class="how-step-title">Build and distribute the agent</div>
+          <div class="how-step-body">From the operator dashboard, generate a pre-configured agent binary baked with your server's address and an invite code. Send the file to your end user or deploy it via your existing software management tooling.</div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">03</div>
+        <div>
+          <div class="how-step-title">The agent registers automatically</div>
+          <div class="how-step-body">Once launched, the agent connects back to the controller over an encrypted WebSocket connection. It registers its hostname, operating system, and hardware profile, then enters a permanent listen state. If connectivity drops, it reconnects on its own.</div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">04</div>
+        <div>
+          <div class="how-step-title">Operate from the controller</div>
+          <div class="how-step-body">Sign in to the Skreen web controller. Select any online agent. Open a live terminal, view the remote screen, transfer files, or inspect running processes — all without leaving the browser tab.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Capabilities ── -->
+<section id="capabilities">
+  <div class="container">
+    <div class="section-label">Capabilities</div>
+    <h2 class="section-heading">Everything an operator needs. Nothing extra.</h2>
+    <div class="cap-row">
+      <div class="cap-item">
+        <div class="cap-name">Live screen sharing</div>
+        <div class="cap-desc">Real-time WebRTC video stream of the remote desktop. Low latency, no plugin required on either side.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">Remote terminal</div>
+        <div class="cap-desc">In-browser shell with live output streaming. Supports PowerShell, cmd, and bash depending on the target OS.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">File transfer</div>
+        <div class="cap-desc">Browse the remote filesystem and upload or download files directly through the controller interface.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">Process management</div>
+        <div class="cap-desc">View all running processes on the remote endpoint. Kill or inspect any process from the operator dashboard.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">Invite links</div>
+        <div class="cap-desc">Generate a time-limited access code and share a join URL with an end user. They download and run the agent with a single click — no technical knowledge required.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">Audit log</div>
+        <div class="cap-desc">Every connection, command, and file operation is logged with a timestamp. Exportable for compliance and review.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">Persistence on reboot</div>
+        <div class="cap-desc">The agent optionally installs as a Windows service or systemd unit, reconnecting automatically after any restart.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">TURN relay support</div>
+        <div class="cap-desc">Integrated Coturn configuration for WebRTC traversal through strict firewalls and symmetric NAT environments.</div>
+      </div>
+      <div class="cap-item">
+        <div class="cap-name">Operator authentication</div>
+        <div class="cap-desc">Sign-in with email and password or Google via Firebase Authentication. Each operator session is fully isolated.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Who it's for ── -->
+<section id="who">
+  <div class="container">
+    <div class="section-label">Who it's for</div>
+    <h2 class="section-heading">Serious tooling for serious operators</h2>
+    <div class="audience-list">
+      <div class="audience-item">
+        <div class="audience-role">IT administrators</div>
+        <div class="audience-desc">Manage a fleet of workstations and servers without paying per-seat licensing fees or tolerating cloud latency. Keep all session data internal.</div>
+      </div>
+      <div class="audience-item">
+        <div class="audience-role">Managed service providers</div>
+        <div class="audience-desc">Deploy Skreen on your own infrastructure and offer remote support under your own brand. No dependency on a vendor that can change pricing or terms.</div>
+      </div>
+      <div class="audience-item">
+        <div class="audience-role">Security-conscious teams</div>
+        <div class="audience-desc">Organizations operating under strict data residency requirements, air-gapped policy considerations, or regulatory frameworks that prohibit third-party remote access tools.</div>
+      </div>
+      <div class="audience-item">
+        <div class="audience-role">Development and DevOps teams</div>
+        <div class="audience-desc">Access lab machines, test environments, and bare metal servers without configuring VPNs. The agent handles reconnection and NAT traversal automatically.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Why self-hosted ── -->
+<section>
+  <div class="container">
+    <div class="section-label">On self-hosting</div>
+    <h2 class="section-heading">Why this matters more than you might think</h2>
+    <div class="selfhosted-body">
+      <p>Most remote access tools on the market operate as cloud brokers. Your connection travels through their relay network, your session metadata is stored on their servers, and your continued access depends on their business staying solvent and their pricing remaining acceptable.</p>
+      <p><strong>Skreen takes a different position.</strong> The server is software you run. The data is yours. If you want to take the installation offline, modify how it works, or integrate it with your existing tooling, nothing stops you. The binary is yours.</p>
+      <p>This is not a philosophical stance. It is a practical one. Teams managing sensitive infrastructure should not have to negotiate with a SaaS vendor's terms of service to do their jobs. <strong>Skreen is infrastructure — it should behave like infrastructure.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <div class="container">
+    <h2>Ready to run it<br/><em>your way?</em></h2>
+    <a href="/signup" class="btn-solid" style="font-size:1rem;padding:13px 28px">Create an account</a>
+    <p class="cta-note">Free to use. Self-hosted. No usage limits imposed by us.</p>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <div class="logo">
+          <svg class="logo-mark" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="25" height="18" rx="2.5" stroke="#0a0a0a" stroke-width="1.8"/>
+            <line x1="1.5" y1="6" x2="26.5" y2="6" stroke="#0a0a0a" stroke-width="1.4"/>
+            <line x1="14" y1="19.5" x2="14" y2="24" stroke="#0a0a0a" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="9" y1="24" x2="19" y2="24" stroke="#0a0a0a" stroke-width="1.8" stroke-linecap="round"/>
+            <rect x="6" y="9.5" width="6" height="5" rx="1" stroke="#0a0a0a" stroke-width="1.4"/>
+            <line x1="15" y1="10.5" x2="22" y2="10.5" stroke="#0a0a0a" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="15" y1="13" x2="20" y2="13" stroke="#0a0a0a" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <span class="logo-name">Skreen</span>
+        </div>
+        <div class="footer-copy">Remote access infrastructure. Self-hosted.</div>
+      </div>
+      <ul class="footer-links">
+        <li><a href="#what">Platform</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#capabilities">Capabilities</a></li>
+        <li><a href="/login">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

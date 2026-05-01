@@ -1,0 +1,273 @@
+/* ── Landing Page CSS ── */
+.landing-page {
+  background: #ffffff;
+  color: #0a0a0a;
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.landing-page a { color: inherit; text-decoration: none; }
+.landing-page img { display: block; max-width: 100%; }
+
+/* ── Layout ── */
+.landing-container { max-width: 1080px; margin: 0 auto; padding: 0 40px; }
+
+/* ── Nav ── */
+.landing-nav {
+  border-bottom: 1px solid #e2e2e2;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 50;
+}
+.landing-nav-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.landing-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.landing-logo-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.landing-logo-name {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  color: #0a0a0a;
+  font-style: italic;
+}
+.landing-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-nav-links a {
+  font-size: 0.875rem;
+  color: #4a4a4a;
+  transition: color 0.15s;
+}
+.landing-nav-links a:hover { color: #0a0a0a; }
+.landing-nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.landing-btn-ghost {
+  font-size: 0.875rem;
+  color: #4a4a4a;
+  transition: color 0.15s;
+}
+.landing-btn-ghost:hover { color: #0a0a0a; }
+.landing-btn-solid {
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: #0a0a0a;
+  color: #fff !important;
+  padding: 9px 20px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.01em;
+  display: inline-block;
+}
+.landing-btn-solid:hover { opacity: 0.82; }
+
+/* ── Hero ── */
+.landing-hero {
+  padding: 100px 0 80px;
+  border-bottom: 1px solid #e2e2e2;
+}
+.landing-hero-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #888888;
+  margin-bottom: 28px;
+}
+.landing-hero h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  color: #0a0a0a;
+  max-width: 760px;
+  margin-bottom: 28px;
+  font-weight: 400;
+}
+.landing-hero h1 em {
+  font-style: italic;
+  color: #4a4a4a;
+}
+.landing-hero-body {
+  max-width: 520px;
+  font-size: 1.05rem;
+  color: #4a4a4a;
+  line-height: 1.7;
+  margin-bottom: 44px;
+  font-weight: 300;
+}
+.landing-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.landing-link-arrow {
+  font-size: 0.875rem;
+  color: #4a4a4a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
+}
+.landing-link-arrow:hover { color: #0a0a0a; }
+.landing-hero-meta {
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid #e2e2e2;
+  display: flex;
+  gap: 48px;
+}
+.landing-hero-stat-num {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+  color: #0a0a0a;
+}
+.landing-hero-stat-label {
+  font-size: 0.82rem;
+  color: #888888;
+  margin-top: 2px;
+}
+
+/* ── Section base ── */
+.landing-section { padding: 88px 0; border-bottom: 1px solid #e2e2e2; }
+.landing-section-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #888888;
+  font-weight: 500;
+  margin-bottom: 48px;
+}
+.landing-section-heading {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: #0a0a0a;
+  max-width: 640px;
+  font-weight: 400;
+}
+
+/* ── What is Skreen ── */
+.landing-what-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid #e2e2e2;
+  margin-top: 56px;
+}
+.landing-what-item {
+  padding: 40px 0;
+  border-bottom: 1px solid #e2e2e2;
+  border-right: 1px solid #e2e2e2;
+}
+.landing-what-item:nth-child(even) { border-right: none; padding-left: 48px; }
+.landing-what-item:nth-child(odd) { padding-right: 48px; }
+.landing-what-item:nth-last-child(-n+2) { border-bottom: none; }
+.landing-what-num {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: #888888;
+  margin-bottom: 16px;
+}
+.landing-what-title {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #0a0a0a;
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+.landing-what-body {
+  font-size: 0.9rem;
+  color: #4a4a4a;
+  line-height: 1.65;
+  font-weight: 300;
+}
+
+/* ── CTA ── */
+.landing-cta-section {
+  padding: 100px 0;
+  border-bottom: 1px solid #e2e2e2;
+}
+.landing-cta-section h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  max-width: 580px;
+  margin-bottom: 36px;
+  color: #0a0a0a;
+  font-weight: 400;
+}
+.landing-cta-section h2 em { font-style: italic; color: #4a4a4a; }
+.landing-cta-note { margin-top: 20px; font-size: 0.82rem; color: #888888; }
+
+/* ── Footer ── */
+.landing-footer { padding: 48px 0; }
+.landing-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.landing-footer-left .landing-logo-name { font-size: 1.1rem; }
+.landing-footer-copy {
+  font-size: 0.8rem;
+  color: #888888;
+  margin-top: 6px;
+}
+.landing-footer-links {
+  display: flex;
+  gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-footer-links a {
+  font-size: 0.82rem;
+  color: #888888;
+  transition: color 0.15s;
+}
+.landing-footer-links a:hover { color: #0a0a0a; }
+
+/* ── Responsive ── */
+@media(max-width: 768px) {
+  .landing-container, .landing-nav-inner { padding: 0 24px; }
+  .landing-nav-links { display: none; }
+  .landing-hero { padding: 64px 0 56px; }
+  .landing-hero h1 { font-size: 2.4rem; }
+  .landing-hero-meta { gap: 28px; flex-wrap: wrap; }
+  .landing-what-grid { grid-template-columns: 1fr; }
+  .landing-what-item { border-right: none !important; padding: 32px 0 !important; }
+  .landing-footer-inner { flex-direction: column; gap: 24px; align-items: flex-start; }
+}

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+dist/
+.env
+.env.*
+
+# Go binaries
+*.exe
+*.test
+bin/
+agent/skreen-agent.exe
+server/server.exe
+
+# IMPORTANT: We WANT to keep the staged installer for deployment
+!server/skreen-agent-setup.exe
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+audit.log
+agent.id
+agent.json
