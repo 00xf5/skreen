@@ -1,6 +1,6 @@
 # Skreen 🖥️
 
-**Skreen** is a professional, enterprise-grade Remote Administration Tool (RAT) designed for seamless support and system management. It features a modern, high-contrast dashboard, a formal Windows installation wizard, and real-time remote control capabilities.
+**Skreen** is a professional, enterprise-grade **Remote Support and Administration Tool** designed for seamless technical assistance and efficient system management. It features a modern, high-contrast dashboard, a formal Windows installation wizard, and real-time remote support capabilities.
 
 ---
 
