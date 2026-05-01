@@ -11,8 +11,9 @@ export function CreateSession({ onClose }) {
 
   const create = async () => {
     setLoading(true)
+    const SERVER = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
     try {
-      const res = await fetch('http://localhost:8080/api/invite/create', {
+      const res = await fetch(`${SERVER}/api/invite/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company, technician: tech, session_type: type })
