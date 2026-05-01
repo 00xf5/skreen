@@ -195,6 +195,11 @@ func main() {
 	// Invite: Validate (join page calls this)
 	http.HandleFunc("/api/invite/validate", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		code := r.URL.Query().Get("code")
 		sess, err := inviteStore.Validate(code)

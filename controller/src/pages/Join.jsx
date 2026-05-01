@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import './Auth.css' // Reuse the beautiful B&W aesthetics!
 
-const SERVER = import.meta.env.VITE_API_URL || 'http://localhost:8080' // Go backend
+const SERVER = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '') // Go backend
 
 export function Join() {
   const { code: urlCode } = useParams()
