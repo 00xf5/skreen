@@ -18,6 +18,35 @@
 
 ---
 
+## 🏗️ Technical Architecture
+
+Skreen operates on a **Hub-and-Spoke** architecture designed for low latency and high reliability:
+
+1.  **Central Hub (Go Server)**: The orchestration engine. It manages WebSocket state, routes administrative commands, and serves the pre-configured agent installers.
+2.  **Management Shell (React Dashboard)**: The technician's cockpit. It provides a real-time interface for session management, system monitoring, and remote interaction.
+3.  **Remote Service (Go Agent)**: The client-side component. It connects outbound to the hub, bypassing most firewall restrictions, and executes support tasks via a secure internal executor.
+
+### Operational Flow
+```mermaid
+sequenceDiagram
+    participant T as Technician (Vercel)
+    participant H as Hub (Render)
+    participant A as Remote Agent (Windows)
+
+    T->>H: 1. Create Support Session
+    H-->>T: 2. Return Join Code & URL
+    T->>A: 3. Share URL with User
+    A->>H: 4. Download & Install Agent
+    A->>H: 5. Connect WebSocket (TLS)
+    H-->>T: 6. Agent Online Notification
+    T->>H: 7. Dispatch Command (Shell/Screen)
+    H->>A: 8. Forward Command
+    A-->>H: 9. Return Result/Stream
+    H-->>T: 10. Update Dashboard View
+```
+
+---
+
 ## 📂 Project Structure
 ```text
 /                    (Root)
