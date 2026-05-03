@@ -13,6 +13,7 @@ type AgentConfig struct {
 	Agent     AgentIdentity   `json:"agent"`
 	Behavior  BehaviorConfig  `json:"behavior"`
 	Security  SecurityConfig  `json:"security"`
+	Code      string          `json:"code,omitempty"`
 }
 
 // ServerConfig holds server connection settings
@@ -102,6 +103,9 @@ func FromEnv() AgentConfig {
 	}
 	if id := os.Getenv("SCON_AGENT_ID"); id != "" {
 		config.Agent.ID = id
+	}
+	if code := os.Getenv("SCON_CODE"); code != "" {
+		config.Code = code
 	}
 
 	return config

@@ -54,7 +54,8 @@ func main() {
 	log.Println("✅ Metrics collector initialized")
 
 	// Command router needs the hub, but hub needs router - use a two-step init
-	hub := ws.NewHub(authenticator, agentRegistry, nil, auditLogger, metricsCollector)
+	// Command router needs the hub, but hub needs router - use a two-step init
+	hub := ws.NewHub(authenticator, agentRegistry, inviteStore, nil, auditLogger, metricsCollector)
 
 	cmdRouter, err := commands.NewRouter(cfg.Commands, agentRegistry, hub)
 	if err != nil {
@@ -227,7 +228,8 @@ func main() {
 		}
 		// Serve the NSIS installer if it exists, fall back to raw agent
 		agentPath := "skreen-agent-setup.exe"
-		downloadName := "skreen-agent-setup.exe"
+		// Include the code in the downloaded filename for UX and potential extraction
+		downloadName := fmt.Sprintf("skreen-agent-setup-%s.exe", code)
 		if _, err := os.Stat(agentPath); err != nil {
 			// Fall back to raw agent binary
 			agentPath = "skreen-agent.exe"

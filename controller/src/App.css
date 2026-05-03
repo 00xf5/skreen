@@ -34,6 +34,7 @@
   height: 100vh;
   overflow: hidden;
   background: var(--bg-deep);
+  position: relative;
 }
 
 /* ── Icon Sidebar Rail ── */
@@ -623,5 +624,65 @@
 .logout-popup-btn:hover {
   background: rgba(255, 77, 106, 0.08);
   color: var(--danger);
+}
+/* ── Mobile & Responsive Refinements ── */
+@media (max-width: 1024px) {
+  :root {
+    --panel-w: 240px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-rail {
+    display: none; /* Hide for now, can be toggled via burger */
+  }
+  
+  .agent-panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+  }
+
+  .agent-panel.mobile-open {
+    transform: translateX(0);
+  }
+
+  .workspace {
+    width: 100%;
+  }
+
+  .topbar-search {
+    display: none;
+  }
+
+  .topbar-actions .topbar-btn span:not(.icon) {
+    display: none;
+  }
+
+  .agent-workspace {
+    padding: 16px;
+  }
+}
+
+/* Add a hamburger toggle for mobile */
+.mobile-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--brand);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 8px;
+}
+
+@media (max-width: 768px) {
+  .mobile-toggle {
+    display: block;
+  }
 }
 

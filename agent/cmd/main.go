@@ -19,6 +19,7 @@ import (
 	"scon/agent/internal/privilege"
 
 	"github.com/google/uuid"
+	"regexp"
 )
 
 var (
@@ -87,6 +88,25 @@ func main() {
 
 	// Load configuration
 	cfg := loadConfig()
+
+	// Parse command line flags for code
+	for i, arg := range os.Args {
+		if (arg == "-code" || arg == "--code") && i+1 < len(os.Args) {
+			cfg.Code = os.Args[i+1]
+		}
+	}
+
+	// Fallback: Try to extract code from filename (e.g. skreen-setup-ABCD.exe)
+	if cfg.Code == "" {
+		if exe, err := os.Executable(); err == nil {
+			re := regexp.MustCompile(`(?i)[-_]([A-Z0-9]{4}-[A-Z0-9]{4})\.exe`)
+			matches := re.FindStringSubmatch(filepath.Base(exe))
+			if len(matches) > 1 {
+				cfg.Code = matches[1]
+				log.Printf("Extracted code from filename: %s", cfg.Code)
+			}
+		}
+	}
 
 	// Ensure agent ID
 	if cfg.Agent.ID == "" {

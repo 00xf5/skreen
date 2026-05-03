@@ -5,33 +5,24 @@ import (
 	"fmt"
 	"sync"
 	"time"
-)
 
-type Session struct {
-	Code       string    `json:"code"`
-	Company    string    `json:"company"`
-	Technician string    `json:"technician"`
-	SessionType string   `json:"session_type"`
-	CreatedAt  time.Time `json:"created_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	Used       bool      `json:"used"`
-	AgentID    string    `json:"agent_id,omitempty"`
-}
+	"scon/server/internal/domain"
+)
 
 type Store struct {
 	mu       sync.RWMutex
-	sessions map[string]*Session
+	sessions map[string]*domain.InviteSession
 }
 
 func NewStore() *Store {
-	return &Store{sessions: make(map[string]*Session)}
+	return &Store{sessions: make(map[string]*domain.InviteSession)}
 }
 
-func (s *Store) Create(company, technician, sessionType string, ttl time.Duration) *Session {
+func (s *Store) Create(company, technician, sessionType string, ttl time.Duration) *domain.InviteSession {
 	code := generateCode()
 	now := time.Now()
 
-	sess := &Session{
+	sess := &domain.InviteSession{
 		Code:        code,
 		Company:     company,
 		Technician:  technician,
@@ -47,7 +38,7 @@ func (s *Store) Create(company, technician, sessionType string, ttl time.Duratio
 	return sess
 }
 
-func (s *Store) Validate(code string) (*Session, error) {
+func (s *Store) Validate(code string) (*domain.InviteSession, error) {
 	s.mu.RLock()
 	sess, exists := s.sessions[code]
 	s.mu.RUnlock()

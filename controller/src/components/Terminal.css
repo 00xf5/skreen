@@ -96,3 +96,12 @@
 }
 
 .terminal-input input::placeholder { color: var(--text-muted); }
+
+@media (max-width: 640px) {
+  .terminal {
+    max-height: 300px;
+  }
+  .terminal-output {
+    font-size: 0.75rem;
+  }
+}

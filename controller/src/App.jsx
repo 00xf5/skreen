@@ -30,6 +30,7 @@ function Shell() {
   const [showCreateSession, setShowCreateSession] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showLogoutMenu, setShowLogoutMenu] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const openTab = (agentId, type, title, icon) => {
     const tabId = `${agentId}-${type}`
@@ -121,7 +122,7 @@ function Shell() {
       </nav>
 
       {/* ── Agent Panel ── */}
-      <aside className="agent-panel">
+      <aside className={`agent-panel ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="panel-header">
           <h2>Access</h2>
           <span className="sub">Install an agent and connect to unattended devices.</span>
@@ -187,8 +188,9 @@ function Shell() {
       </aside>
 
       {/* ── Workspace ── */}
-      <div className="workspace">
+      <div className="workspace" onClick={() => setMobileMenuOpen(false)}>
         <div className="topbar">
+          <button className="mobile-toggle" onClick={(e) => { e.stopPropagation(); setMobileMenuOpen(!mobileMenuOpen) }}>☰</button>
           <span className="topbar-title">
             {tabs.find(t => t.id === activeTabId)?.title || 'Access'}
           </span>

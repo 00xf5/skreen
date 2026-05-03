@@ -133,6 +133,24 @@
 .switch input:checked + .slider { background: var(--brand-dim); border-color: var(--brand); }
 .switch input:checked + .slider::before { transform: translateX(16px); background: var(--brand); }
 
+
 .danger-actions { display: flex; gap: 8px; }
 .detail-card.danger { border-color: rgba(255,77,106,0.2); }
 .detail-card.danger h4 { color: var(--danger); }
+
+@media (max-width: 640px) {
+  .details-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .details-header > div:last-child {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-left: 0 !important;
+  }
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+}

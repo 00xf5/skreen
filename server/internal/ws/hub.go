@@ -34,12 +34,13 @@ type Hub struct {
 	authenticator domain.Authenticator
 	registry      domain.AgentRegistry
 	router        domain.CommandRouter
+	inviteStore   domain.InviteStore
 	auditLogger   domain.AuditLogger
 	metrics       domain.MetricsCollector
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(auth domain.Authenticator, registry domain.AgentRegistry, router domain.CommandRouter, auditLogger domain.AuditLogger, metrics domain.MetricsCollector) *Hub {
+func NewHub(auth domain.Authenticator, registry domain.AgentRegistry, inviteStore domain.InviteStore, router domain.CommandRouter, auditLogger domain.AuditLogger, metrics domain.MetricsCollector) *Hub {
 	return &Hub{
 		agents:        make(map[string]*domain.ClientConnection),
 		controllers:   make(map[*domain.ClientConnection]struct{}),
@@ -48,6 +49,7 @@ func NewHub(auth domain.Authenticator, registry domain.AgentRegistry, router dom
 		shutdownCh:    make(chan struct{}),
 		authenticator: auth,
 		registry:      registry,
+		inviteStore:   inviteStore,
 		router:        router,
 		auditLogger:   auditLogger,
 		metrics:       metrics,
@@ -307,6 +309,12 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to register agent in registry: %v", err)
 		h.UnregisterClient(client)
 		return
+	}
+
+	// If a session code was provided, mark it as used
+	if msg.Code != "" && h.inviteStore != nil {
+		h.inviteStore.MarkUsed(msg.Code, msg.AgentID)
+		log.Printf("Session code %s linked to agent %s", msg.Code, msg.AgentID)
 	}
 
 	// Send new token to agent

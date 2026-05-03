@@ -1,5 +1,7 @@
 package domain
 
+// Triggering IDE refresh
+
 import (
 	"time"
 
@@ -84,6 +86,7 @@ type Message struct {
 	ChunkIndex int    `json:"chunk_index,omitempty"`
 	ChunkCount int    `json:"chunk_count,omitempty"`
 	ChunkData  string `json:"chunk_data,omitempty"`  // base64 encoded chunk
+	Code       string `json:"code,omitempty"`        // Session invite code
 }
 
 // StructuredCommand represents a validated, structured command

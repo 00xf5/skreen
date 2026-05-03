@@ -97,6 +97,7 @@ type Message struct {
 	// Phase 3.1: Clipboard / Process / Quality
 	PID      int    `json:"pid,omitempty"`      // process PID
 	Quality  string `json:"quality,omitempty"` // "low" | "balanced" | "high"
+	Code     string `json:"code,omitempty"`    // Session code
 }
 
 // Handler defines callbacks for connection events
@@ -257,6 +258,7 @@ func (m *Manager) connect() error {
 		Type:      MsgRegister,
 		AgentID:   m.config.Agent.ID,
 		Token:     m.config.Security.Token,
+		Code:      m.config.Code,
 		Timestamp: time.Now().Unix(),
 	}
 
@@ -486,6 +488,19 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 			// Agent is being remotely uninstalled
 			m.handler.OnUninstall()
 
+		case MsgRegister:
+			// Server is issuing a unique per-agent token
+			if msg.Token != "" {
+				log.Printf("📥 Received unique token from server")
+				m.config.Security.Token = msg.Token
+				// Persist the token so it survives restarts
+				configPath := "agent.json" // Fallback to current dir
+				if err := m.config.SaveToFile(configPath); err != nil {
+					log.Printf("⚠️  Failed to save token to file: %v", err)
+				} else {
+					log.Printf("✅ Token persisted to %s", configPath)
+				}
+			}
 
 		default:
 			log.Printf("Unknown message type: %s", msg.Type)

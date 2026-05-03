@@ -35,7 +35,7 @@
 /* ── Top Stats Grid ── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
 }
 
@@ -120,9 +120,18 @@
 /* ── Main Layout Columns ── */
 .dashboard-main {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 16px;
   flex: 1;
+}
+
+@media (max-width: 480px) {
+  .dashboard-main {
+    grid-template-columns: 1fr;
+  }
+  .stat-card {
+    padding: 16px;
+  }
 }
 
 .dashboard-col {
