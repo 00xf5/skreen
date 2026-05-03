@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useWebSocket } from './hooks/useWebSocket'
 import { Dashboard } from './components/Dashboard'
