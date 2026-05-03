@@ -24,6 +24,16 @@ function Shell() {
   const [showConnSettings, setShowConnSettings] = useState(false)
   const [newApiUrl, setNewApiUrl] = useState(localStorage.getItem('scon_api_url') || '')
 
+  useEffect(() => {
+    // Auto-discovery from query params
+    const params = new URLSearchParams(window.location.search)
+    const apiParam = params.get('api')
+    if (apiParam && apiParam !== localStorage.getItem('scon_api_url')) {
+      localStorage.setItem('scon_api_url', apiParam)
+      window.location.reload()
+    }
+  }, [])
+
   const saveApiUrl = () => {
     localStorage.setItem('scon_api_url', newApiUrl)
     window.location.reload()

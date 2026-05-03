@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,7 +21,6 @@ import (
 	"scon/agent/internal/privilege"
 
 	"github.com/google/uuid"
-	"regexp"
 )
 
 var (
@@ -100,17 +101,23 @@ func main() {
 	if exe, err := os.Executable(); err == nil {
 		fname := filepath.Base(exe)
 		
-		// Pattern 1: Code and Host: skreen-agent-setup-[CODE]-[HOST].exe
-		reFull := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9.-]+)\.exe`)
+		// Pattern 1: Flexible extraction
+		// Looks for skreen-agent-setup-[CODE]-[HOST].[any extension]
+		// and handles Windows " (1)" suffixes
+		reFull := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9.-]+)`)
 		if matches := reFull.FindStringSubmatch(fname); len(matches) > 2 {
 			cfg.Code = matches[1]
-			cfg.Server.Host = matches[2]
-			cfg.Server.Port = 443 // Assume production port for filename-based hosts
+			cfg.Server.Host = strings.TrimSuffix(strings.TrimSuffix(matches[2], ".exe"), ".zip")
+			// Remove any " (1)" or similar from host
+			if idx := strings.Index(cfg.Server.Host, " "); idx != -1 {
+				cfg.Server.Host = cfg.Server.Host[:idx]
+			}
+			cfg.Server.Port = 443
 			cfg.Server.TLS = true
 			log.Printf("Auto-configured from filename: Code=%s, Host=%s", cfg.Code, cfg.Server.Host)
 		} else {
-			// Pattern 2: Just Code: skreen-agent-setup-[CODE].exe
-			reCode := regexp.MustCompile(`(?i)[-_]([A-Z0-9]{4}-[A-Z0-9]{4})\.exe`)
+			// Pattern 2: Just Code
+			reCode := regexp.MustCompile(`(?i)[-_]([A-Z0-9]{4}-[A-Z0-9]{4})`)
 			if matches := reCode.FindStringSubmatch(fname); len(matches) > 1 {
 				cfg.Code = matches[1]
 				log.Printf("Extracted code from filename: %s", cfg.Code)
