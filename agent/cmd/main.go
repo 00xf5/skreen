@@ -91,18 +91,27 @@ func main() {
 	// Load configuration
 	cfg := loadConfig()
 
-	// Parse command line flags for code
+	// Parse command line flags for code or installer name
+	var installerName string
 	for i, arg := range os.Args {
 		if (arg == "-code" || arg == "--code") && i+1 < len(os.Args) {
 			cfg.Code = os.Args[i+1]
+		}
+		if (arg == "-installer" || arg == "--installer") && i+1 < len(os.Args) {
+			installerName = os.Args[i+1]
 		}
 	}
 
 	// Fallback: Try to extract code and host from filename (e.g. skreen-agent-setup-ABCD-EFGH-api.scon.com.exe)
 	// Also handles Windows copy suffixes like " (2)" or " - Copy"
-	if exe, err := os.Executable(); err == nil {
-		fname := filepath.Base(exe)
+	var fname string
+	if installerName != "" {
+		fname = installerName
+	} else if exe, err := os.Executable(); err == nil {
+		fname = filepath.Base(exe)
+	}
 
+	if fname != "" {
 		// Strip Windows copy suffixes before matching
 		fname = regexp.MustCompile(`\s*(\(\d+\)|- Copy)(\.exe)?$`).ReplaceAllString(fname, ".exe")
 

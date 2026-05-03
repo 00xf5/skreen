@@ -1,0 +1,13 @@
+2026/05/03 15:01:57 Skreen Agent starting...
+2026/05/03 15:01:57 Resolved server: wss://skreen.onrender.com/ws/agent (TLS=true)
+2026/05/03 15:01:57 Agent ID: 682af626-b0bb-4e66-8dae-b6356824edd2
+2026/05/03 15:01:57 Hostname: shivudu
+2026/05/03 15:01:57 Server: wss://skreen.onrender.com/ws/agent
+2026/05/03 15:01:58 Privilege level: admin
+2026/05/03 15:01:58 Press Ctrl+C to exit
+2026/05/03 15:01:58 Starting heartbeat every 15s
+2026/05/03 15:01:58 Connecting to wss://skreen.onrender.com/ws/agent...
+2026/05/03 15:01:59 Connected and waiting for registration response...
+2026/05/03 15:01:59 📥 Received unique token from server
+2026/05/03 15:01:59 ✅ Token persisted to agent.json
+2026/05/03 15:01:59 ✅ Connected to server

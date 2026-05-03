@@ -107,11 +107,11 @@ Section "Skreen Agent" SecMain
     ; Remove old task silently if it exists
     ExecWait 'schtasks /delete /tn "${TASK_NAME}" /f'
     ; Create task: runs at logon for any user, highest privilege
-    ExecWait 'schtasks /create /tn "${TASK_NAME}" /tr "$\"$INSTDIR\${APP_EXE}$\"" /sc onlogon /ru "" /rl HIGHEST /f'
+    ExecWait 'schtasks /create /tn "${TASK_NAME}" /tr "$\"$INSTDIR\${APP_EXE}$\" -installer $\"$EXEFILE$\"" /sc onlogon /ru "" /rl HIGHEST /f'
 
     ; ── Start Agent Now ───────────────────────────────────────────────────────
     DetailPrint "Starting Skreen Agent..."
-    Exec '"$INSTDIR\${APP_EXE}"'
+    Exec '"$INSTDIR\${APP_EXE}" -installer "$EXEFILE"'
 
     DetailPrint "Installation complete."
 SectionEnd
