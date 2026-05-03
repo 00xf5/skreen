@@ -21,8 +21,18 @@ export function useWebSocket() {
     })
 
     const unsubscribeAgents = wsService.on('agents', (msg) => {
-      if (msg.data && Array.isArray(msg.data)) {
-        setAgents(msg.data.map(id => ({ id, online: true })))
+      if (msg.data) {
+        if (Array.isArray(msg.data)) {
+          setAgents(msg.data.map(id => ({ id, online: true })))
+        } else if (typeof msg.data === 'object' && msg.agent_id) {
+          // Handle single agent metadata update
+          setAgents(prev => {
+            if (prev.find(a => a.id === msg.agent_id)) {
+              return prev.map(a => a.id === msg.agent_id ? { ...a, ...msg.data, online: true } : a)
+            }
+            return [...prev, { id: msg.agent_id, ...msg.data, online: true }]
+          })
+        }
       }
     })
 

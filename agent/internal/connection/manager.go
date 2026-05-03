@@ -20,6 +20,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
+	"os"
+	"runtime"
 )
 
 // MessageType defines the type of WebSocket message
@@ -254,12 +256,18 @@ func (m *Manager) connect() error {
 	m.connected.Store(true)
 
 	// Send registration message
+	hostname, _ := os.Hostname()
 	regMsg := Message{
 		Type:      MsgRegister,
 		AgentID:   m.config.Agent.ID,
 		Token:     m.config.Security.Token,
 		Code:      m.config.Code,
 		Timestamp: time.Now().Unix(),
+		Data: map[string]interface{}{
+			"hostname": hostname,
+			"os":       runtime.GOOS,
+			"version":  "1.0.0",
+		},
 	}
 
 	if err := conn.WriteJSON(regMsg); err != nil {

@@ -267,21 +267,31 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate and generate per-agent token
-	if err := h.authenticator.ValidateAgentToken(msg.AgentID, msg.Token); err != nil {
-		log.Printf("Invalid token from agent %s: %v", msg.AgentID, err)
-		conn.WriteJSON(domain.Message{Type: domain.MsgError, Error: "Invalid token"})
-		if h.auditLogger != nil {
-			h.auditLogger.LogSecurity(msg.AgentID, "invalid_token", r.RemoteAddr, err.Error())
+	// 1. Validate Invite Code (allows initial registration without a production token)
+	isNewRegistration := false
+	if msg.Code != "" && h.inviteStore != nil {
+		if _, err := h.inviteStore.Validate(msg.Code); err == nil {
+			isNewRegistration = true
+			log.Printf("Valid invite code %s provided by agent %s", msg.Code, msg.AgentID)
 		}
-		return
+	}
+
+	// 2. Validate token (unless it's a new invite-based registration)
+	if !isNewRegistration {
+		if err := h.authenticator.ValidateAgentToken(msg.AgentID, msg.Token); err != nil {
+			log.Printf("Authentication failed for agent %s: %v", msg.AgentID, err)
+			h.sendError(conn, "Authentication failed")
+			conn.Close()
+			return
+		}
 	}
 
 	// Generate per-agent unique token
 	token, tokenHash, err := h.authenticator.GenerateAgentToken(msg.AgentID)
 	if err != nil {
 		log.Printf("Failed to generate token: %v", err)
-		conn.WriteJSON(domain.Message{Type: domain.MsgError, Error: "Token generation failed"})
+		h.sendError(conn, "Token generation failed")
+		conn.Close()
 		return
 	}
 
@@ -297,7 +307,7 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 	// Register with hub
 	h.RegisterClient(client)
 
-	// Register with registry
+	// Register with registry (include initial metadata if provided)
 	agent := &domain.Agent{
 		ID:        msg.AgentID,
 		Conn:      conn,
@@ -305,16 +315,41 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		TokenHash: tokenHash,
 		IsOnline:  true,
 	}
-	if err := h.registry.Register(agent); err != nil {
-		log.Printf("Failed to register agent in registry: %v", err)
-		h.UnregisterClient(client)
-		return
+
+	// Extract metadata from MsgRegister.Data if present
+	if msg.Data != nil {
+		if meta, ok := msg.Data.(map[string]interface{}); ok {
+			if hn, ok := meta["hostname"].(string); ok {
+				agent.Meta.Hostname = hn
+			}
+			if osName, ok := meta["os"].(string); ok {
+				agent.Meta.OS = osName
+			}
+			if ver, ok := meta["version"].(string); ok {
+				agent.Meta.Version = ver
+			}
+		}
 	}
 
-	// If a session code was provided, mark it as used
+	if err := h.registry.Register(agent); err != nil {
+		// If agent already exists (reconnect), update its connection instead of failing
+		if err == domain.ErrAgentExists {
+			if existing, eErr := h.registry.Get(msg.AgentID); eErr == nil {
+				existing.Conn = conn
+				existing.IsOnline = true
+				existing.LastSeen = time.Now()
+				log.Printf("Agent %s reconnected, updated registry", msg.AgentID)
+			}
+		} else {
+			log.Printf("Failed to register agent: %v", err)
+			h.UnregisterClient(client)
+			return
+		}
+	}
+
+	// Link session if code provided
 	if msg.Code != "" && h.inviteStore != nil {
 		h.inviteStore.MarkUsed(msg.Code, msg.AgentID)
-		log.Printf("Session code %s linked to agent %s", msg.Code, msg.AgentID)
 	}
 
 	// Send new token to agent
