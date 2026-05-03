@@ -21,6 +21,13 @@ import './App.css'
 function Shell() {
   const user = useAuth()
   const { connected, agents, results, sendCommand, togglePersistence, refreshAgents, uninstallAgent } = useWebSocket()
+  const [showConnSettings, setShowConnSettings] = useState(false)
+  const [newApiUrl, setNewApiUrl] = useState(localStorage.getItem('scon_api_url') || '')
+
+  const saveApiUrl = () => {
+    localStorage.setItem('scon_api_url', newApiUrl)
+    window.location.reload()
+  }
 
   const [tabs, setTabs] = useState([
     { id: 'dashboard', type: 'dashboard', title: 'Access', icon: '🖥' }
@@ -211,11 +218,22 @@ function Shell() {
           <div className="topbar-search">
             <input type="text" placeholder="🔍 Search All Sessions..." />
           </div>
-          <div className={`status-pill ${connected ? 'online' : 'offline'}`}>
+          <div 
+            className={`status-pill ${connected ? 'online' : 'offline'}`}
+            onClick={() => !connected && setShowConnSettings(true)}
+            style={{ cursor: connected ? 'default' : 'pointer' }}
+          >
             <span className="status-dot-sm" />
-            {connected ? 'Connected' : 'Offline'}
+            {connected ? 'Connected' : 'Disconnected (Fix)'}
           </div>
         </div>
+
+        {!connected && (
+          <div className="conn-warning">
+            ⚠️ Dashboard disconnected from Backend. 
+            <button onClick={() => setShowConnSettings(true)}>Update Backend URL</button>
+          </div>
+        )}
 
         {/* ── Tabs ── */}
         <div className="tabs-bar">
@@ -277,6 +295,31 @@ function Shell() {
         </div>
       </div>
       {showCreateSession && <CreateSession onClose={() => setShowCreateSession(false)} />}
+      
+      {showConnSettings && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h3>Backend Connection</h3>
+            <p>Your dashboard needs to connect to the SCON Backend API.</p>
+            <div style={{ margin: '20px 0' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Backend URL (e.g. https://your-app.onrender.com)
+              </label>
+              <input 
+                type="text" 
+                value={newApiUrl} 
+                onChange={(e) => setNewApiUrl(e.target.value)}
+                placeholder="https://your-app.onrender.com"
+                style={{ width: '100%', padding: '10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-bright)', borderRadius: '4px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button className="secondary-btn" onClick={() => setShowConnSettings(false)}>Cancel</button>
+              <button className="primary-btn" onClick={saveApiUrl}>Save & Reload</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

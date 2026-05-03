@@ -1,6 +1,8 @@
 // WebSocket service for server communication
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
+// Prioritize localStorage for manual overrides (useful for self-hosted/multi-cloud setups)
+const savedApiUrl = localStorage.getItem('scon_api_url')
+const API_URL = (savedApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
 const WS_URL = API_URL.replace('http', 'ws') + '/ws/controller'
 
 class WebSocketService {
