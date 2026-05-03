@@ -96,12 +96,22 @@ func main() {
 		}
 	}
 
-	// Fallback: Try to extract code from filename (e.g. skreen-setup-ABCD.exe)
-	if cfg.Code == "" {
-		if exe, err := os.Executable(); err == nil {
-			re := regexp.MustCompile(`(?i)[-_]([A-Z0-9]{4}-[A-Z0-9]{4})\.exe`)
-			matches := re.FindStringSubmatch(filepath.Base(exe))
-			if len(matches) > 1 {
+	// Fallback: Try to extract code and host from filename (e.g. skreen-agent-setup-ABCD-EFGH-api.scon.com.exe)
+	if exe, err := os.Executable(); err == nil {
+		fname := filepath.Base(exe)
+		
+		// Pattern 1: Code and Host: skreen-agent-setup-[CODE]-[HOST].exe
+		reFull := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9.-]+)\.exe`)
+		if matches := reFull.FindStringSubmatch(fname); len(matches) > 2 {
+			cfg.Code = matches[1]
+			cfg.Server.Host = matches[2]
+			cfg.Server.Port = 443 // Assume production port for filename-based hosts
+			cfg.Server.TLS = true
+			log.Printf("Auto-configured from filename: Code=%s, Host=%s", cfg.Code, cfg.Server.Host)
+		} else {
+			// Pattern 2: Just Code: skreen-agent-setup-[CODE].exe
+			reCode := regexp.MustCompile(`(?i)[-_]([A-Z0-9]{4}-[A-Z0-9]{4})\.exe`)
+			if matches := reCode.FindStringSubmatch(fname); len(matches) > 1 {
 				cfg.Code = matches[1]
 				log.Printf("Extracted code from filename: %s", cfg.Code)
 			}

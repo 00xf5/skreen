@@ -228,8 +228,10 @@ func main() {
 		}
 		// Serve the NSIS installer if it exists, fall back to raw agent
 		agentPath := "skreen-agent-setup.exe"
-		// Include the code in the downloaded filename for UX and potential extraction
-		downloadName := fmt.Sprintf("skreen-agent-setup-%s.exe", code)
+		// Include the code and the current server host in the downloaded filename.
+		// The agent will extract these to configure itself automatically.
+		host := r.Host
+		downloadName := fmt.Sprintf("skreen-agent-setup-%s-%s.exe", code, host)
 		if _, err := os.Stat(agentPath); err != nil {
 			// Fall back to raw agent binary
 			agentPath = "skreen-agent.exe"
