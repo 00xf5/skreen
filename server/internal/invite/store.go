@@ -3,6 +3,7 @@ package invite
 import (
 	"crypto/rand"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,9 +41,10 @@ func (s *Store) Create(company, technician, sessionType string, ttl time.Duratio
 
 func (s *Store) Validate(code string) (*domain.InviteSession, error) {
 	s.mu.RLock()
-	sess, exists := s.sessions[code]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
+	code = strings.ToUpper(code)
+	sess, exists := s.sessions[code]
 	if !exists {
 		return nil, fmt.Errorf("invalid code")
 	}

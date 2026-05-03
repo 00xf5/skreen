@@ -43,14 +43,7 @@ func main() {
 	agentRegistry := registry.NewInMemoryRegistry()
 	inviteStore := invite.NewStore()
 
-	auditLogger, err := audit.New(cfg.Audit.LogPath)
-	if err != nil {
-		log.Printf("Warning: Failed to create audit logger: %v", err)
-		auditLogger = nil
-	} else {
-		defer auditLogger.Close()
-	}
-
+	auditLogger, _ := audit.New(cfg.Audit.LogPath)
 	metricsCollector := metrics.NewCollector()
 	hub := ws.NewHub(authenticator, agentRegistry, inviteStore, nil, auditLogger, metricsCollector)
 
@@ -70,14 +63,14 @@ func main() {
 	}
 	go hub.Run()
 
-	// ── CONSOLIDATED ROUTING ──
+	// ── Setup Consolidated Mux ──
 	mux := http.NewServeMux()
 
 	// WebSockets
 	mux.HandleFunc("/ws/agent", hub.HandleAgentConnection)
 	mux.HandleFunc("/ws/controller", hub.HandleControllerConnection)
 
-	// Join Pages
+	// Static: Join Page
 	mux.HandleFunc("/join/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		http.ServeFile(w, r, "join.html")
@@ -87,7 +80,7 @@ func main() {
 		http.ServeFile(w, r, "join.html")
 	})
 
-	// Health
+	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
@@ -100,6 +93,20 @@ func main() {
 		json.NewEncoder(w).Encode(snapshot)
 	})
 
+	// API: Audit (Crucial for debugging)
+	mux.HandleFunc("/api/audit", func(w http.ResponseWriter, r *http.Request) {
+		if auditLogger == nil {
+			http.Error(w, "Audit logging disabled", http.StatusServiceUnavailable)
+			return
+		}
+		entries := auditLogger.GetRecent(100)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"count":   len(entries),
+			"entries": entries,
+		})
+	})
+
 	// API: Agents List
 	mux.HandleFunc("/api/agents", func(w http.ResponseWriter, r *http.Request) {
 		agents := agentRegistry.GetAll()
@@ -110,6 +117,7 @@ func main() {
 			Online   bool   `json:"online"`
 			LastSeen string `json:"last_seen"`
 			Hostname string `json:"hostname"`
+			OS       string `json:"os"`
 		}
 		
 		infos := make([]AgentInfo, 0, len(agents))
@@ -119,9 +127,9 @@ func main() {
 				Online:   a.IsOnline,
 				LastSeen: a.LastSeen.Format(time.RFC3339),
 				Hostname: a.Meta.Hostname,
+				OS:       a.Meta.OS,
 			})
 		}
-		
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"count":  len(infos),
 			"agents": infos,
@@ -130,19 +138,15 @@ func main() {
 
 	// API: Invite Create
 	mux.HandleFunc("/api/invite/create", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost && r.Method != http.MethodOptions {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+		if r.Method == http.MethodOptions { return }
 		var req struct {
-			Company     string `json:"company"`
-			Technician  string `json:"technician"`
-			SessionType string `json:"session_type"`
+			Company    string `json:"company"`
+			Technician string `json:"technician"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
 		
-		// Increased TTL to 1 hour for production reliability
-		sess := inviteStore.Create(req.Company, req.Technician, req.SessionType, 1*time.Hour)
+		// Increased TTL to 1 hour
+		sess := inviteStore.Create(req.Company, req.Technician, "Remote Access", 1*time.Hour)
 		
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sess)
@@ -164,7 +168,7 @@ func main() {
 		})
 	})
 
-	// Agent Download
+	// Download Handler
 	mux.HandleFunc("/download/agent", func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		if _, err := inviteStore.Validate(code); err != nil {
@@ -181,7 +185,7 @@ func main() {
 		http.ServeFile(w, r, agentPath)
 	})
 
-	// ── Server Start ──
+	// ── Start Server ──
 	port := os.Getenv("PORT")
 	if port == "" { port = "8080" }
 	
@@ -228,6 +232,7 @@ func runAgentCleanup(ctx context.Context, registry *registry.InMemoryRegistry, t
 }
 
 func runMetricsSnapshot(ctx context.Context, collector *metrics.Collector, registry *registry.InMemoryRegistry, interval time.Duration) {
+	if interval == 0 { interval = 60 * time.Second }
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -241,6 +246,7 @@ func runMetricsSnapshot(ctx context.Context, collector *metrics.Collector, regis
 }
 
 func runAuditFlush(ctx context.Context, logger *audit.Logger, interval time.Duration) {
+	if interval == 0 { interval = 30 * time.Second }
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
