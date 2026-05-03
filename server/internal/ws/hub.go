@@ -113,6 +113,8 @@ func (h *Hub) registerClient(client *domain.ClientConnection) {
 		log.Printf("Agent registered: %s", client.AgentID)
 
 		// ── Broadcast updated agent list to ALL connected controllers ──
+		// Small delay to ensure registry is fully populated
+		time.Sleep(100 * time.Millisecond)
 		agents := h.registry.GetOnline()
 		agentIDs := make([]string, len(agents))
 		for i, a := range agents {
@@ -257,17 +259,7 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate HMAC
-	if err := h.authenticator.ValidateHMAC(&msg, ""); err != nil {
-		log.Printf("Invalid HMAC from %s: %v", r.RemoteAddr, err)
-		conn.WriteJSON(domain.Message{Type: domain.MsgError, Error: "Invalid HMAC"})
-		if h.auditLogger != nil {
-			h.auditLogger.LogSecurity(msg.AgentID, "invalid_hmac", r.RemoteAddr, err.Error())
-		}
-		return
-	}
-
-	// 1. Validate Invite Code (allows initial registration without a production token)
+	// 1. Validate Invite Code (allows initial registration without a production token or HMAC)
 	isNewRegistration := false
 	if msg.Code != "" && h.inviteStore != nil {
 		if _, err := h.inviteStore.Validate(msg.Code); err == nil {
@@ -276,7 +268,20 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 2. Validate token (unless it's a new invite-based registration)
+	// 2. Validate HMAC (unless it's a new registration with a valid code)
+	if !isNewRegistration {
+		if err := h.authenticator.ValidateHMAC(&msg, ""); err != nil {
+			log.Printf("Invalid HMAC from %s: %v", r.RemoteAddr, err)
+			h.sendError(conn, "Invalid HMAC")
+			if h.auditLogger != nil {
+				h.auditLogger.LogSecurity(msg.AgentID, "invalid_hmac", r.RemoteAddr, err.Error())
+			}
+			conn.Close()
+			return
+		}
+	}
+
+	// 3. Validate token (unless it's a new invite-based registration)
 	if !isNewRegistration {
 		if err := h.authenticator.ValidateAgentToken(msg.AgentID, msg.Token); err != nil {
 			log.Printf("Authentication failed for agent %s: %v", msg.AgentID, err)
