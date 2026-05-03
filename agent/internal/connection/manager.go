@@ -1,6 +1,9 @@
 package connection
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -97,9 +100,10 @@ type Message struct {
 	ChunkData  string `json:"chunk_data,omitempty"`  // base64 encoded chunk
 
 	// Phase 3.1: Clipboard / Process / Quality
-	PID      int    `json:"pid,omitempty"`      // process PID
-	Quality  string `json:"quality,omitempty"` // "low" | "balanced" | "high"
-	Code     string `json:"code,omitempty"`    // Session code
+	PID       int    `json:"pid,omitempty"`
+	Quality   string `json:"quality,omitempty"`
+	Code      string `json:"code,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 // Handler defines callbacks for connection events
@@ -268,6 +272,14 @@ func (m *Manager) connect() error {
 			"os":       runtime.GOOS,
 			"version":  "1.0.0",
 		},
+	}
+
+	// Sign registration message if we have a token (reconnect)
+	if m.config.Security.Token != "" {
+		signData := fmt.Sprintf("%s:%s:%d", regMsg.Type, regMsg.AgentID, regMsg.Timestamp)
+		h := hmac.New(sha256.New, []byte(m.config.Security.Token))
+		h.Write([]byte(signData))
+		regMsg.Signature = hex.EncodeToString(h.Sum(nil))
 	}
 
 	if err := conn.WriteJSON(regMsg); err != nil {
@@ -532,6 +544,15 @@ func (m *Manager) writeLoop(done <-chan struct{}) {
 	for {
 		select {
 		case msg := <-m.sendCh:
+			// Sign message if we have a token
+			if m.config.Security.Token != "" && msg.Type != MsgRegister {
+				// Create a canonical string for signing (Type + AgentID + Timestamp)
+				signData := fmt.Sprintf("%s:%s:%d", msg.Type, msg.AgentID, msg.Timestamp)
+				h := hmac.New(sha256.New, []byte(m.config.Security.Token))
+				h.Write([]byte(signData))
+				msg.Signature = hex.EncodeToString(h.Sum(nil))
+			}
+
 			data, err := json.Marshal(msg)
 			if err != nil {
 				continue
