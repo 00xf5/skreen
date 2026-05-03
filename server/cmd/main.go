@@ -39,10 +39,6 @@ func main() {
 
 	cfg := loadConfig()
 
-	if cfg.Auth.SharedSecret == "" {
-		log.Println("⚠️  Warning: No SCON_SECRET set. Running in development mode.")
-	}
-
 	authenticator := auth.NewSimpleAuthenticator(cfg.Auth)
 	agentRegistry := registry.NewInMemoryRegistry()
 	inviteStore := invite.NewStore()
@@ -52,13 +48,10 @@ func main() {
 		log.Printf("Warning: Failed to create audit logger: %v", err)
 		auditLogger = nil
 	} else {
-		log.Printf("✅ Audit logging to: %s", cfg.Audit.LogPath)
 		defer auditLogger.Close()
 	}
 
 	metricsCollector := metrics.NewCollector()
-	log.Println("✅ Metrics collector initialized")
-
 	hub := ws.NewHub(authenticator, agentRegistry, inviteStore, nil, auditLogger, metricsCollector)
 
 	cmdRouter, err := commands.NewRouter(cfg.Commands, agentRegistry, hub)
@@ -77,14 +70,14 @@ func main() {
 	}
 	go hub.Run()
 
-	// ── Setup Mux ──
+	// ── CONSOLIDATED ROUTING ──
 	mux := http.NewServeMux()
 
 	// WebSockets
 	mux.HandleFunc("/ws/agent", hub.HandleAgentConnection)
 	mux.HandleFunc("/ws/controller", hub.HandleControllerConnection)
 
-	// Static
+	// Join Pages
 	mux.HandleFunc("/join/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		http.ServeFile(w, r, "join.html")
@@ -104,33 +97,35 @@ func main() {
 	mux.HandleFunc("/api/metrics", func(w http.ResponseWriter, r *http.Request) {
 		snapshot := metricsCollector.GetSnapshot(agentRegistry)
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"total_agents":%d,"online_agents":%d,"offline_agents":%d,"commands_total":%d,"commands_failed":%d,"avg_latency_ms":%d}`,
-			snapshot.TotalAgents, snapshot.OnlineAgents, snapshot.OfflineAgents,
-			snapshot.CommandsTotal, snapshot.CommandsFailed, snapshot.AvgLatency.Milliseconds())
-	})
-
-	// API: Audit
-	mux.HandleFunc("/api/audit", func(w http.ResponseWriter, r *http.Request) {
-		if auditLogger == nil {
-			http.Error(w, "Audit logging disabled", http.StatusServiceUnavailable)
-			return
-		}
-		entries := auditLogger.GetRecent(100)
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"count":%d,"entries":[]}`, len(entries))
+		json.NewEncoder(w).Encode(snapshot)
 	})
 
 	// API: Agents List
 	mux.HandleFunc("/api/agents", func(w http.ResponseWriter, r *http.Request) {
 		agents := agentRegistry.GetAll()
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"count":%d,"agents":[`, len(agents))
-		for i, a := range agents {
-			if i > 0 { fmt.Fprint(w, ",") }
-			fmt.Fprintf(w, `{"id":"%s","online":%t,"last_seen":"%s"}`,
-				a.ID, a.IsOnline, a.LastSeen.Format(time.RFC3339))
+		
+		type AgentInfo struct {
+			ID       string `json:"id"`
+			Online   bool   `json:"online"`
+			LastSeen string `json:"last_seen"`
+			Hostname string `json:"hostname"`
 		}
-		fmt.Fprint(w, "]}")
+		
+		infos := make([]AgentInfo, 0, len(agents))
+		for _, a := range agents {
+			infos = append(infos, AgentInfo{
+				ID:       a.ID,
+				Online:   a.IsOnline,
+				LastSeen: a.LastSeen.Format(time.RFC3339),
+				Hostname: a.Meta.Hostname,
+			})
+		}
+		
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"count":  len(infos),
+			"agents": infos,
+		})
 	})
 
 	// API: Invite Create
@@ -145,23 +140,12 @@ func main() {
 			SessionType string `json:"session_type"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		if req.Company == "" { req.Company = "SCON Support" }
-		if req.Technician == "" { req.Technician = "Technician" }
 		
-		sess := inviteStore.Create(req.Company, req.Technician, req.SessionType, 10*time.Minute)
+		// Increased TTL to 1 hour for production reliability
+		sess := inviteStore.Create(req.Company, req.Technician, req.SessionType, 1*time.Hour)
 		
-		controllerURL := os.Getenv("CONTROLLER_URL")
-		if controllerURL == "" { controllerURL = "http://localhost:3000" }
-
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"code":         sess.Code,
-			"join_url":     fmt.Sprintf("%s/join/%s", controllerURL, sess.Code),
-			"expires_in":   "10 minutes",
-			"company":      sess.Company,
-			"technician":   sess.Technician,
-			"session_type": sess.SessionType,
-		})
+		json.NewEncoder(w).Encode(sess)
 	})
 
 	// API: Invite Validate
@@ -169,25 +153,22 @@ func main() {
 		code := r.URL.Query().Get("code")
 		sess, err := inviteStore.Validate(code)
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"valid":        true,
-			"company":      sess.Company,
-			"technician":   sess.Technician,
-			"session_type": sess.SessionType,
-			"expires_at":   sess.ExpiresAt.Unix(),
+			"valid":   true,
+			"company": sess.Company,
+			"code":    sess.Code,
 		})
 	})
 
-	// Download Handler
+	// Agent Download
 	mux.HandleFunc("/download/agent", func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		if _, err := inviteStore.Validate(code); err != nil {
-			http.Error(w, "Invalid or expired code", http.StatusForbidden)
+			http.Error(w, "Invalid code", http.StatusForbidden)
 			return
 		}
 		agentPath := "skreen-agent-setup.exe"
@@ -210,7 +191,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("🚀 Server listening on %s", server.Addr)
+		log.Printf("🚀 SCON Server Listening on %s", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
 		}
@@ -220,17 +201,9 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("\n🛑 Shutting down gracefully...")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
-	}
-
+	server.Shutdown(context.Background())
 	agentRegistry.Close()
 	hub.Shutdown()
-	log.Println("👋 Server stopped")
 }
 
 func loadConfig() config.ServerConfig {
@@ -247,10 +220,7 @@ func runAgentCleanup(ctx context.Context, registry *registry.InMemoryRegistry, t
 	for {
 		select {
 		case <-ticker.C:
-			offline := registry.CleanupOffline(timeout)
-			if len(offline) > 0 {
-				log.Printf("Cleaned up %d offline agents: %v", len(offline), offline)
-			}
+			registry.CleanupOffline(timeout)
 		case <-ctx.Done():
 			return
 		}
@@ -258,14 +228,12 @@ func runAgentCleanup(ctx context.Context, registry *registry.InMemoryRegistry, t
 }
 
 func runMetricsSnapshot(ctx context.Context, collector *metrics.Collector, registry *registry.InMemoryRegistry, interval time.Duration) {
-	if interval == 0 { interval = 60 * time.Second }
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			snapshot := collector.GetSnapshot(registry)
-			collector.StoreSnapshot(snapshot)
+			collector.StoreSnapshot(collector.GetSnapshot(registry))
 		case <-ctx.Done():
 			return
 		}
@@ -273,7 +241,6 @@ func runMetricsSnapshot(ctx context.Context, collector *metrics.Collector, regis
 }
 
 func runAuditFlush(ctx context.Context, logger *audit.Logger, interval time.Duration) {
-	if interval == 0 { interval = 30 * time.Second }
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
