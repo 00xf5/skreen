@@ -215,14 +215,20 @@
 }
 
 .ac-icon {
-  font-size: 1.5rem;
   background: rgba(255,255,255,0.05);
   width: 40px;
   height: 40px;
+  min-width: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
+  color: var(--brand);
+}
+
+.ac-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .ac-text {

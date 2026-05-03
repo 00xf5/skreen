@@ -64,19 +64,26 @@ export function Dashboard({ agents, onSelectAgent }) {
         <div className="dashboard-col">
           <div className="dash-card quick-actions">
             <div className="dash-card-header">
-              <h3>⚡ Quick Actions</h3>
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="15" height="15" style={{marginRight:'6px',verticalAlign:'middle',display:'inline-block'}}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Quick Actions
+              </h3>
             </div>
             <div className="action-cards">
               <button className="action-card primary" onClick={() => onSelectAgent(agents[0]?.id)} disabled={!agents.length}>
-                <div className="ac-icon">🖥</div>
+                <div className="ac-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
                 <div className="ac-text">
                   <strong>Control Agent</strong>
                   <span>Connect to the first available endpoint</span>
                 </div>
               </button>
-              
+
               <button className="action-card disabled">
-                <div className="ac-icon">🚀</div>
+                <div className="ac-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                </div>
                 <div className="ac-text">
                   <strong>Mass Deploy</strong>
                   <span>Run scripts across multiple devices</span>
@@ -85,7 +92,9 @@ export function Dashboard({ agents, onSelectAgent }) {
               </button>
 
               <button className="action-card disabled">
-                <div className="ac-icon">📊</div>
+                <div className="ac-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
                 <div className="ac-text">
                   <strong>Export Audit Log</strong>
                   <span>Download session compliance reports</span>
@@ -97,7 +106,10 @@ export function Dashboard({ agents, onSelectAgent }) {
 
           <div className="dash-card metrics">
             <div className="dash-card-header">
-              <h3>📈 Server Telemetry</h3>
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="15" height="15" style={{marginRight:'6px',verticalAlign:'middle',display:'inline-block'}}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Server Telemetry
+              </h3>
             </div>
             <div className="metrics-body">
               <div className="metric-row">
@@ -129,7 +141,10 @@ export function Dashboard({ agents, onSelectAgent }) {
         <div className="dashboard-col">
           <div className="dash-card audit-log">
             <div className="dash-card-header">
-              <h3>🛡 Security & Audit Log</h3>
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="15" height="15" style={{marginRight:'6px',verticalAlign:'middle',display:'inline-block'}}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Security &amp; Audit Log
+              </h3>
               <button className="text-btn">View All</button>
             </div>
             <div className="audit-list">
