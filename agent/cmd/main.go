@@ -145,7 +145,7 @@ func main() {
 	log.Printf("Privilege level: %s", handler.privLevel)
 
 	// Create connection manager
-	connMgr := connection.NewManager(cfg, handler)
+	connMgr := connection.NewManager(&cfg, handler)
 
 	// Create and start heartbeat
 	hb := heartbeat.New(cfg.Behavior.HeartbeatInterval, connMgr)

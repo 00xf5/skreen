@@ -21,6 +21,7 @@ type Heartbeat struct {
 type Sender interface {
 	Send(msg connection.Message) error
 	IsConnected() bool
+	GetAgentID() string
 }
 
 // New creates a new heartbeat manager
@@ -86,6 +87,7 @@ func (h *Heartbeat) send() {
 
 	msg := connection.Message{
 		Type:      connection.MsgHeartbeat,
+		AgentID:   h.sender.GetAgentID(),
 		Timestamp: time.Now().Unix(),
 	}
 

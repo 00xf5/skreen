@@ -119,7 +119,7 @@ type Handler interface {
 
 // Manager handles WebSocket connection with auto-reconnect
 type Manager struct {
-	config      config.AgentConfig
+	config      *config.AgentConfig
 	handler     Handler
 	conn        *websocket.Conn
 	connMu      sync.RWMutex
@@ -137,7 +137,7 @@ type Manager struct {
 }
 
 // NewManager creates a new connection manager
-func NewManager(cfg config.AgentConfig, handler Handler) *Manager {
+func NewManager(cfg *config.AgentConfig, handler Handler) *Manager {
 	m := &Manager{
 		config:      cfg,
 		handler:     handler,
@@ -194,6 +194,11 @@ func (m *Manager) Send(msg Message) error {
 	default:
 		return fmt.Errorf("send buffer full")
 	}
+}
+
+// GetAgentID returns the unique agent ID
+func (m *Manager) GetAgentID() string {
+	return m.config.Agent.ID
 }
 
 // IsConnected returns true if currently connected
@@ -287,10 +292,8 @@ func (m *Manager) connect() error {
 		return fmt.Errorf("registration failed: %w", err)
 	}
 
-	log.Printf("Connected and registered as %s", m.config.Agent.ID)
+	log.Printf("Connected and waiting for registration response...")
 	m.resetAttempts()
-	m.handler.OnConnect()
-
 	return nil
 }
 
@@ -520,6 +523,8 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 				} else {
 					log.Printf("✅ Token persisted to %s", configPath)
 				}
+				// Signal that we are now fully authenticated and ready
+				m.handler.OnConnect()
 			}
 
 		default:
