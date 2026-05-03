@@ -545,9 +545,9 @@
 /* ── Logout popup ── */
 .logout-popup {
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0;
+  left: calc(100% + 10px);
+  transform: none;
   width: 280px;
   background: #0d1219;
   border: 1px solid rgba(0, 200, 200, 0.15);
@@ -559,8 +559,8 @@
 }
 
 @keyframes popup-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .logout-popup-user {
