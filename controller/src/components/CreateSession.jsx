@@ -11,17 +11,21 @@ export function CreateSession({ onClose }) {
 
   const create = async () => {
     setLoading(true)
-    const SERVER = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
+    // Use the same URL resolution priority as websocket.js
+    const SERVER = (localStorage.getItem('scon_api_url') || import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
     try {
       const res = await fetch(`${SERVER}/api/invite/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company, technician: tech, session_type: type })
       })
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
       const data = await res.json()
-      setResult(data)
-    } catch {
-      alert('Failed to reach server')
+      // Build the join URL pointing to the Vercel dashboard's /join route
+      const joinUrl = `${window.location.origin}/join/${data.code}`
+      setResult({ ...data, join_url: joinUrl })
+    } catch (err) {
+      alert(`Failed to reach server: ${err.message}`)
     } finally {
       setLoading(false)
     }

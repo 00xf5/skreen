@@ -113,8 +113,6 @@ func (h *Hub) registerClient(client *domain.ClientConnection) {
 		log.Printf("Agent registered: %s", client.AgentID)
 
 		// ── Broadcast updated agent list to ALL connected controllers ──
-		// Small delay to ensure registry is fully populated
-		time.Sleep(100 * time.Millisecond)
 		agents := h.registry.GetOnline()
 		agentIDs := make([]string, len(agents))
 		for i, a := range agents {
@@ -300,19 +298,10 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store token in registry
-	h.registry.UpdateToken(msg.AgentID, token)
-
 	// Clear read deadline
 	conn.SetReadDeadline(time.Time{})
 
-	// Set agent ID
-	client.AgentID = msg.AgentID
-
-	// Register with hub
-	h.RegisterClient(client)
-
-	// Register with registry (include initial metadata if provided)
+	// Build agent struct with metadata
 	agent := &domain.Agent{
 		ID:        msg.AgentID,
 		Conn:      conn,
@@ -320,8 +309,6 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		TokenHash: tokenHash,
 		IsOnline:  true,
 	}
-
-	// Extract metadata from MsgRegister.Data if present
 	if msg.Data != nil {
 		if meta, ok := msg.Data.(map[string]interface{}); ok {
 			if hn, ok := meta["hostname"].(string); ok {
@@ -336,9 +323,10 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 1. Register with registry FIRST — hub must see agent before broadcasting
 	if err := h.registry.Register(agent); err != nil {
-		// If agent already exists (reconnect), update its connection instead of failing
 		if err == domain.ErrAgentExists {
+			// Reconnect: update existing entry in place
 			if existing, eErr := h.registry.Get(msg.AgentID); eErr == nil {
 				existing.Conn = conn
 				existing.IsOnline = true
@@ -347,10 +335,18 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			log.Printf("Failed to register agent: %v", err)
-			h.UnregisterClient(client)
+			h.sendError(conn, "Registration failed")
+			conn.Close()
 			return
 		}
 	}
+
+	// 2. Update token index (agent is now guaranteed in registry)
+	h.registry.UpdateToken(msg.AgentID, token)
+
+	// 3. Register with hub (triggers agent-list broadcast to controllers)
+	client.AgentID = msg.AgentID
+	h.RegisterClient(client)
 
 	// Link session if code provided
 	if msg.Code != "" && h.inviteStore != nil {

@@ -25,8 +25,9 @@ import (
 
 var (
 	Version    = "1.0.0"
-	ServerHost = "localhost" // Can be overridden via -ldflags "-X main.ServerHost=api.skreen.io"
-	ServerPort = "8080"      // Can be overridden via -ldflags "-X main.ServerPort=443"
+	// These are overridden at build time via: -ldflags "-X main.ServerHost=skreen-xyz.onrender.com -X main.ServerPort=443"
+	ServerHost = "localhost"
+	ServerPort = "8080"
 )
 
 
@@ -98,20 +99,24 @@ func main() {
 	}
 
 	// Fallback: Try to extract code and host from filename (e.g. skreen-agent-setup-ABCD-EFGH-api.scon.com.exe)
+	// Also handles Windows copy suffixes like " (2)" or " - Copy"
 	if exe, err := os.Executable(); err == nil {
 		fname := filepath.Base(exe)
-		
+
+		// Strip Windows copy suffixes before matching
+		fname = regexp.MustCompile(`\s*(\(\d+\)|- Copy)(\.exe)?$`).ReplaceAllString(fname, ".exe")
+
 		// Pattern 1: Flexible extraction
 		// Looks for skreen-agent-setup-[CODE]-[HOST].[any extension]
-		// and handles Windows " (1)" suffixes
-		reFull := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9.-]+)`)
+		reFull := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9][a-z0-9.-]+[a-z0-9])`)
 		if matches := reFull.FindStringSubmatch(fname); len(matches) > 2 {
 			cfg.Code = matches[1]
-			cfg.Server.Host = strings.TrimSuffix(strings.TrimSuffix(matches[2], ".exe"), ".zip")
-			// Remove any " (1)" or similar from host
-			if idx := strings.Index(cfg.Server.Host, " "); idx != -1 {
-				cfg.Server.Host = cfg.Server.Host[:idx]
+			extractedHost := strings.TrimSuffix(strings.TrimSuffix(matches[2], ".exe"), ".zip")
+			// Remove any trailing " (1)" or similar from host
+			if idx := strings.Index(extractedHost, " "); idx != -1 {
+				extractedHost = extractedHost[:idx]
 			}
+			cfg.Server.Host = extractedHost
 			cfg.Server.Port = 443
 			cfg.Server.TLS = true
 			log.Printf("Auto-configured from filename: Code=%s, Host=%s", cfg.Code, cfg.Server.Host)
@@ -199,11 +204,13 @@ func loadConfig() config.AgentConfig {
 	// Override with baked-in defaults if env/file didn't provide them
 	if cfg.Server.Host == "" || cfg.Server.Host == "localhost" {
 		cfg.Server.Host = ServerHost
-	}
-	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
-		fmt.Sscanf(ServerPort, "%d", &cfg.Server.Port)
+		if ServerPort != "8080" && ServerPort != "" {
+			fmt.Sscanf(ServerPort, "%d", &cfg.Server.Port)
+			cfg.Server.TLS = (cfg.Server.Port == 443)
+		}
 	}
 
+	log.Printf("Resolved server: %s (TLS=%v)", cfg.GetWebSocketURL(), cfg.Server.TLS)
 	return cfg
 }
 

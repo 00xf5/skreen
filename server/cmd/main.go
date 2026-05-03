@@ -144,12 +144,19 @@ func main() {
 			Technician string `json:"technician"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		
-		// Increased TTL to 1 hour
+
 		sess := inviteStore.Create(req.Company, req.Technician, "Remote Access", 1*time.Hour)
-		
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sess)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"code":         sess.Code,
+			"company":      sess.Company,
+			"technician":   sess.Technician,
+			"session_type": sess.SessionType,
+			"created_at":   sess.CreatedAt,
+			"expires_at":   sess.ExpiresAt,
+			"expires_in":   "1 hour",
+		})
 	})
 
 	// API: Invite Validate
