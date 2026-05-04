@@ -32,8 +32,8 @@ func NewInMemoryRegistry(persistPath string) *InMemoryRegistry {
 // Register adds a new agent to the registry
 func (r *InMemoryRegistry) Register(agent *domain.Agent) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	defer r.Save()
+	defer r.mu.Unlock()
 
 	if _, exists := r.agents[agent.ID]; exists {
 		return domain.ErrAgentExists
@@ -56,8 +56,8 @@ func (r *InMemoryRegistry) Register(agent *domain.Agent) error {
 // Unregister removes an agent from the registry
 func (r *InMemoryRegistry) Unregister(agentID string) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	defer r.Save()
+	defer r.mu.Unlock()
 
 	agent, exists := r.agents[agentID]
 	if !exists {
@@ -175,8 +175,8 @@ func (r *InMemoryRegistry) List() ([]*domain.Agent, error) {
 // UpdateToken updates an agent's authentication token
 func (r *InMemoryRegistry) UpdateToken(agentID, token string) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	defer r.Save()
+	defer r.mu.Unlock()
 
 	agent, exists := r.agents[agentID]
 	if !exists {
