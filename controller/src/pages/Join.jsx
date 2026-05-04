@@ -223,11 +223,15 @@ export function Join() {
             </button>
 
             <div style={{ marginTop: 24, fontSize: '0.85rem', color: '#4a4a4a', textAlign: 'left' }}>
-              <ol style={{ paddingLeft: 20 }}>
+              <div style={{ marginBottom: 16, padding: '12px 14px', background: '#fff9e6', border: '1px solid #ffe58f', borderRadius: 6, color: '#8c6b14' }}>
+                <strong>Security Note:</strong> Windows may flag this file as unrecognised. This is a false positive expected for remote access tools. <br/>
+                If prompted, click <strong>More info</strong> → <strong>Run anyway</strong>.
+              </div>
+              <ol style={{ paddingLeft: 20, margin: 0 }}>
                 <li style={{ marginBottom: 8 }}>Locate <strong>skreen-agent-setup.exe</strong> in your downloads.</li>
                 <li style={{ marginBottom: 8 }}>Double-click it to launch the installer.</li>
-                <li style={{ marginBottom: 8 }}>Click <strong>Next</strong> through the setup wizard and accept the agreement.</li>
-                <li>Click <strong>Install</strong> — the agent will start automatically when done.</li>
+                <li style={{ marginBottom: 8 }}>Follow the setup wizard to complete the installation.</li>
+                <li>The agent will connect automatically when done.</li>
               </ol>
             </div>
           </div>
