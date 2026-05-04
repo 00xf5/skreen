@@ -22,6 +22,9 @@ type AgentRegistry interface {
 	// GetAll returns all registered agents
 	GetAll() []*Agent
 
+	// Save commits current state to persistence layer
+	Save() error
+
 	// GetOnline returns only online agents
 	GetOnline() []*Agent
 

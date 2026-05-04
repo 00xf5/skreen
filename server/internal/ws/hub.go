@@ -174,6 +174,25 @@ func (h *Hub) unregisterClient(client *domain.ClientConnection) {
 			close(client.Send)
 			client.Conn.Close()
 			log.Printf("Agent unregistered: %s", client.AgentID)
+
+			if agent, err := h.registry.Get(client.AgentID); err == nil {
+				agent.IsOnline = false
+				agent.Conn = nil
+				h.registry.Save()
+			}
+
+			// Broadcast updated agent list to controllers
+			go func() {
+				agents := h.registry.GetOnline()
+				agentIDs := make([]string, len(agents))
+				for i, a := range agents {
+					agentIDs[i] = a.ID
+				}
+				h.SendToControllers(domain.Message{
+					Type: domain.MsgAgents,
+					Data: agentIDs,
+				})
+			}()
 		}
 
 	case domain.ClientController:
@@ -331,6 +350,7 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 				existing.Conn = conn
 				existing.IsOnline = true
 				existing.LastSeen = time.Now()
+				h.registry.Save()
 				log.Printf("Agent %s reconnected, updated registry", msg.AgentID)
 			}
 		} else {

@@ -9,26 +9,31 @@ import (
 
 // InMemoryRegistry implements domain.AgentRegistry with thread-safe operations
 type InMemoryRegistry struct {
-	mu       sync.RWMutex
-	agents   map[string]*domain.Agent
-	tokenIdx map[string]string // token hash -> agentID for lookup
-	subs     map[chan domain.RegistryEvent]struct{}
-	subsMu   sync.RWMutex
+	mu          sync.RWMutex
+	agents      map[string]*domain.Agent
+	tokenIdx    map[string]string // token hash -> agentID for lookup
+	subs        map[chan domain.RegistryEvent]struct{}
+	subsMu      sync.RWMutex
+	persistPath string
 }
 
 // NewInMemoryRegistry creates a new in-memory agent registry
-func NewInMemoryRegistry() *InMemoryRegistry {
-	return &InMemoryRegistry{
-		agents:   make(map[string]*domain.Agent),
-		tokenIdx: make(map[string]string),
-		subs:     make(map[chan domain.RegistryEvent]struct{}),
+func NewInMemoryRegistry(persistPath string) *InMemoryRegistry {
+	r := &InMemoryRegistry{
+		agents:      make(map[string]*domain.Agent),
+		tokenIdx:    make(map[string]string),
+		subs:        make(map[chan domain.RegistryEvent]struct{}),
+		persistPath: persistPath,
 	}
+	r.LoadPersisted()
+	return r
 }
 
 // Register adds a new agent to the registry
 func (r *InMemoryRegistry) Register(agent *domain.Agent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	defer r.Save()
 
 	if _, exists := r.agents[agent.ID]; exists {
 		return domain.ErrAgentExists
@@ -52,6 +57,7 @@ func (r *InMemoryRegistry) Register(agent *domain.Agent) error {
 func (r *InMemoryRegistry) Unregister(agentID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	defer r.Save()
 
 	agent, exists := r.agents[agentID]
 	if !exists {
@@ -170,6 +176,7 @@ func (r *InMemoryRegistry) List() ([]*domain.Agent, error) {
 func (r *InMemoryRegistry) UpdateToken(agentID, token string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	defer r.Save()
 
 	agent, exists := r.agents[agentID]
 	if !exists {

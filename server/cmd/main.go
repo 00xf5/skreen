@@ -40,7 +40,7 @@ func main() {
 	cfg := loadConfig()
 
 	authenticator := auth.NewSimpleAuthenticator(cfg.Auth)
-	agentRegistry := registry.NewInMemoryRegistry()
+	agentRegistry := registry.NewInMemoryRegistry("agents.json")
 	inviteStore := invite.NewStore()
 
 	auditLogger, _ := audit.New(cfg.Audit.LogPath)
