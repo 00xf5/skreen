@@ -247,6 +247,33 @@
 .agent-item-meta {
   font-size: 0.72rem;
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.os-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.agent-item.selected .os-icon {
+  color: var(--brand);
+}
+
+.idle-label {
+  color: var(--warning);
+}
+
+.active-label {
+  color: var(--success);
+}
+
+.offline-item {
+  opacity: 0.6;
+  filter: grayscale(1);
 }
 
 .panel-footer {

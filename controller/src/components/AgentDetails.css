@@ -1,5 +1,5 @@
 /* AgentDetails — SCON Branded */
-.agent-details {}
+
 
 .details-header {
   display: flex;
@@ -99,6 +99,46 @@
   color: var(--text);
 }
 
+.val-bright {
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+.telemetry-item {
+  margin-top: 16px;
+}
+
+.telemetry-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.telemetry-bar-wrap {
+  height: 6px;
+  background: var(--bg-card);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.telemetry-bar {
+  height: 100%;
+  background: var(--brand);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.telemetry-bar.warning {
+  background: #ffb84d;
+}
+
+.telemetry-bar.danger {
+  background: #ff4d4d;
+}
+
 .switch {
   position: relative;
   width: 36px;
@@ -153,4 +193,173 @@
   .details-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Subtabs */
+.subtabs-bar {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2px;
+}
+
+.subtab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.subtab-btn:hover { color: var(--text-bright); }
+.subtab-btn.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+/* Toolbox */
+.toolbox-view {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.toolbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.tool-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.tool-card:hover:not(:disabled) {
+  border-color: var(--brand);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 200, 200, 0.1);
+}
+
+.tool-card:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tool-card.running { border-color: var(--warning); animation: pulse 1.5s infinite; }
+@keyframes pulse { 
+  0% { box-shadow: 0 0 0 0 rgba(255, 184, 77, 0.2); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 184, 77, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 184, 77, 0); }
+}
+
+.tool-icon { font-size: 1.5rem; }
+.tool-name { font-weight: 700; color: var(--text-bright); font-size: 0.88rem; }
+.tool-cmd { font-size: 0.65rem; color: var(--text-muted); font-family: monospace; }
+
+.tool-output {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.output-header {
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.output-header button {
+  background: none;
+  border: none;
+  color: var(--brand);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.tool-output pre {
+  padding: 16px;
+  margin: 0;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.8rem;
+  color: #d1d5db;
+  white-space: pre-wrap;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.custom-tool {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-tool h4 {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.custom-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-input-group input {
+  flex: 1;
+  background: #0a0f14;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 14px;
+  color: var(--text-bright);
+  font-family: inherit;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.custom-input-group input:focus { border-color: var(--brand); }
+
+.custom-input-group button {
+  background: var(--brand);
+  color: #0a0f14;
+  border: none;
+  border-radius: 4px;
+  padding: 0 20px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.custom-input-group button:hover { filter: brightness(1.1); }
+
+.files-view {
+  margin-top: 24px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

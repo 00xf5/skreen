@@ -43,11 +43,12 @@ type Session struct {
 	once    sync.Once
 
 	// Quality settings (mutable at runtime)
-	qualityMu   sync.Mutex
-	jpegQual    int
-	targetW     int
-	targetH     int
-	framePeriod time.Duration
+	qualityMu    sync.Mutex
+	jpegQual     int
+	targetW      int
+	targetH      int
+	framePeriod  time.Duration
+	displayIndex int
 
 	// Callbacks
 	OnICECandidate func(candidateJSON string)
@@ -55,20 +56,19 @@ type Session struct {
 }
 
 // NewSession creates a new PeerConnection and video track.
-// STUN is set to Google's public server (free, no auth).
 func NewSession(
+	iceServers []webrtc.ICEServer,
 	onICECandidate func(candidateJSON string),
 	onStateChange func(state webrtc.ICEConnectionState),
 ) (*Session, error) {
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
+	if len(iceServers) == 0 {
+		iceServers = []webrtc.ICEServer{
 			{URLs: []string{"stun:stun.l.google.com:19302"}},
-			{
-				URLs:       []string{"turn:127.0.0.1:3478"},
-				Username:   "scon",
-				Credential: "scon_super_secret_webrtc_key",
-			},
-		},
+		}
+	}
+
+	config := webrtc.Configuration{
+		ICEServers: iceServers,
 	}
 
 	pc, err := webrtc.NewPeerConnection(config)
@@ -96,11 +96,12 @@ func NewSession(
 		stopCh:         make(chan struct{}),
 		OnICECandidate: onICECandidate,
 		OnStateChange:  onStateChange,
-		// Default: balanced quality
+		// Default: balanced quality on primary display
 		jpegQual:    50,
 		targetW:     960,
 		targetH:     540,
 		framePeriod: time.Second / 8,
+		displayIndex: 0,
 	}
 
 	// Wire ICE candidate trickle
@@ -221,6 +222,22 @@ func (s *Session) SetQuality(q string) {
 	log.Printf("[screenshare] quality set to %s", q)
 }
 
+// SetDisplay changes the active display being captured.
+func (s *Session) SetDisplay(index int) {
+	s.qualityMu.Lock()
+	defer s.qualityMu.Unlock()
+	max := screenshot.NumActiveDisplays() - 1
+	if index >= 0 && index <= max {
+		s.displayIndex = index
+		log.Printf("[screenshare] display set to %d", index)
+	}
+}
+
+// NumDisplays returns the total number of connected monitors.
+func NumDisplays() int {
+	return screenshot.NumActiveDisplays()
+}
+
 // captureLoop is the heart of Phase 2.
 func (s *Session) captureLoop() {
 	log.Printf("[screenshare] capture loop started")
@@ -231,7 +248,6 @@ func (s *Session) captureLoop() {
 		return
 	}
 
-	bounds := screenshot.GetDisplayBounds(0)
 	lastFrame := time.Time{}
 
 	for {
@@ -247,6 +263,7 @@ func (s *Session) captureLoop() {
 		tw := s.targetW
 		th := s.targetH
 		jq := s.jpegQual
+		idx := s.displayIndex
 		s.qualityMu.Unlock()
 
 		// Frame-skip guard
@@ -256,6 +273,13 @@ func (s *Session) captureLoop() {
 			continue
 		}
 		lastFrame = now
+
+		// Re-fetch bounds in case of display changes
+		maxDisplays := screenshot.NumActiveDisplays()
+		if idx >= maxDisplays {
+			idx = 0 // fallback
+		}
+		bounds := screenshot.GetDisplayBounds(idx)
 
 		// Capture screen
 		img, err := screenshot.CaptureRect(bounds)

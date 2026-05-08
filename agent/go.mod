@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/kardianos/service v1.2.4
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/pion/webrtc/v3 v3.3.6
 	golang.org/x/image v0.39.0

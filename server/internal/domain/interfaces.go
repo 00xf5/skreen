@@ -28,6 +28,12 @@ type AgentRegistry interface {
 	// GetOnline returns only online agents
 	GetOnline() []*Agent
 
+	// Count returns the total number of registered agents
+	Count() int
+
+	// GetOnlineCount returns the number of currently online agents
+	GetOnlineCount() int
+
 	// List returns all agents for metrics
 	List() ([]*Agent, error)
 

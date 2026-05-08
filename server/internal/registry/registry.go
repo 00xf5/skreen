@@ -98,7 +98,6 @@ func (r *InMemoryRegistry) GetAll() []*domain.Agent {
 		// Return a copy to prevent external mutation
 		agents = append(agents, r.copyAgent(agent))
 	}
-
 	return agents
 }
 
@@ -115,6 +114,27 @@ func (r *InMemoryRegistry) GetOnline() []*domain.Agent {
 	}
 
 	return agents
+}
+
+// Count returns the total number of registered agents
+func (r *InMemoryRegistry) Count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.agents)
+}
+
+// GetOnlineCount returns the number of currently online agents
+func (r *InMemoryRegistry) GetOnlineCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	count := 0
+	for _, agent := range r.agents {
+		if agent.IsOnline {
+			count++
+		}
+	}
+	return count
 }
 
 // UpdateHeartbeat updates the last seen timestamp

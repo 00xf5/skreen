@@ -176,3 +176,52 @@
 
 .sd-row span { color: var(--text-muted, #5a7080); }
 .sd-row strong { color: var(--text-bright, #e8f0f8); font-weight: 500; }
+
+.deployment-builder {
+  background: linear-gradient(135deg, rgba(0,200,200,0.05) 0%, rgba(0,0,0,0) 100%);
+  border: 1px solid var(--border-active, rgba(0,200,200,0.35));
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.db-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.deployment-builder p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.download-btn {
+  background: var(--brand);
+  color: #0a0f14;
+  border: none;
+  border-radius: 6px;
+  padding: 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.download-btn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 15px rgba(0,200,200,0.3);
+}

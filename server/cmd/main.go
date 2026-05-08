@@ -15,6 +15,7 @@ import (
 	"scon/server/internal/auth"
 	"scon/server/internal/commands"
 	"scon/server/internal/config"
+	"scon/server/internal/domain"
 	"scon/server/internal/invite"
 	"scon/server/internal/metrics"
 	"scon/server/internal/registry"
@@ -111,23 +112,29 @@ func main() {
 	mux.HandleFunc("/api/agents", func(w http.ResponseWriter, r *http.Request) {
 		agents := agentRegistry.GetAll()
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		type AgentInfo struct {
-			ID       string `json:"id"`
-			Online   bool   `json:"online"`
-			LastSeen string `json:"last_seen"`
-			Hostname string `json:"hostname"`
-			OS       string `json:"os"`
+			ID          string `json:"id"`
+			Online      bool   `json:"online"`
+			LastSeen    string `json:"last_seen"`
+			Hostname    string `json:"hostname"`
+			OS          string `json:"os"`
+			Username    string             `json:"username"`
+			IdleSeconds int64              `json:"idle_seconds"`
+			Stats       domain.SystemStats `json:"stats"`
 		}
-		
+
 		infos := make([]AgentInfo, 0, len(agents))
 		for _, a := range agents {
 			infos = append(infos, AgentInfo{
-				ID:       a.ID,
-				Online:   a.IsOnline,
-				LastSeen: a.LastSeen.Format(time.RFC3339),
-				Hostname: a.Meta.Hostname,
-				OS:       a.Meta.OS,
+				ID:          a.ID,
+				Online:      a.IsOnline,
+				LastSeen:    a.LastSeen.Format(time.RFC3339),
+				Hostname:    a.Meta.Hostname,
+				OS:          a.Meta.OS,
+				Username:    a.Meta.Username,
+				IdleSeconds: a.Meta.IdleSeconds,
+				Stats:       a.Meta.Stats,
 			})
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -172,6 +179,39 @@ func main() {
 			"valid":   true,
 			"company": sess.Company,
 			"code":    sess.Code,
+		})
+	})
+ 
+	// API: Server Metrics
+	mux.HandleFunc("/api/server-metrics", func(w http.ResponseWriter, r *http.Request) {
+		m := hub.GetMetrics()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(m)
+	})
+
+	// API: WebRTC Config (ICE/TURN servers)
+	mux.HandleFunc("/api/webrtc-config", func(w http.ResponseWriter, r *http.Request) {
+		turnURL := os.Getenv("TURN_URL")
+		turnUser := os.Getenv("TURN_USERNAME")
+		turnPass := os.Getenv("TURN_PASSWORD")
+
+		iceServers := []map[string]interface{}{
+			{
+				"urls": []string{"stun:stun.l.google.com:19302"},
+			},
+		}
+
+		if turnURL != "" {
+			iceServers = append(iceServers, map[string]interface{}{
+				"urls":       []string{turnURL},
+				"username":   turnUser,
+				"credential": turnPass,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"iceServers": iceServers,
 		})
 	})
 

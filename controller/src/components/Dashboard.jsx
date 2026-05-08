@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './Dashboard.css'
 
-export function Dashboard({ agents, onSelectAgent }) {
+export function Dashboard({ agents, metrics, onSelectAgent }) {
   const onlineCount = agents.filter(a => a.online).length
   const offlineCount = agents.length - onlineCount
 
@@ -9,12 +9,8 @@ export function Dashboard({ agents, onSelectAgent }) {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
-  // Simulated metrics for polish
-  const [networkLoad, setNetworkLoad] = useState(12)
-  useEffect(() => {
-    const int = setInterval(() => setNetworkLoad(10 + Math.floor(Math.random() * 20)), 3000)
-    return () => clearInterval(int)
-  }, [])
+  const memMB = Math.round((metrics?.memory_usage_bytes || 0) / (1024 * 1024))
+  const wsLoad = Math.round(metrics?.websocket_load || 0)
 
   return (
     <div className="dashboard">
@@ -70,7 +66,7 @@ export function Dashboard({ agents, onSelectAgent }) {
               </h3>
             </div>
             <div className="action-cards">
-              <button className="action-card primary" onClick={() => onSelectAgent(agents[0]?.id)} disabled={!agents.length}>
+              <button className="action-card primary" onClick={() => onSelectAgent(agents.find(a => a.online)?.id)} disabled={!onlineCount}>
                 <div className="ac-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                 </div>
@@ -115,23 +111,23 @@ export function Dashboard({ agents, onSelectAgent }) {
               <div className="metric-row">
                 <div className="metric-label">WebSocket Load</div>
                 <div className="metric-bar-wrap">
-                  <div className="metric-bar" style={{ width: `${networkLoad}%` }}></div>
+                  <div className="metric-bar" style={{ width: `${wsLoad}%` }}></div>
                 </div>
-                <div className="metric-val">{networkLoad}%</div>
+                <div className="metric-val">{wsLoad}%</div>
               </div>
               <div className="metric-row">
-                <div className="metric-label">Active Streams</div>
+                <div className="metric-label">Active Controllers</div>
                 <div className="metric-bar-wrap">
-                  <div className="metric-bar" style={{ width: '0%', background: 'var(--brand)' }}></div>
+                  <div className="metric-bar" style={{ width: '2%', background: 'var(--brand)' }}></div>
                 </div>
-                <div className="metric-val">0</div>
+                <div className="metric-val">{metrics?.active_controllers || 0}</div>
               </div>
               <div className="metric-row">
                 <div className="metric-label">Memory Usage</div>
                 <div className="metric-bar-wrap">
-                  <div className="metric-bar" style={{ width: '24%', background: '#ffb84d' }}></div>
+                  <div className="metric-bar" style={{ width: `${Math.min(100, memMB / 10)}%`, background: '#ffb84d' }}></div>
                 </div>
-                <div className="metric-val">24MB</div>
+                <div className="metric-val">{memMB}MB</div>
               </div>
             </div>
           </div>

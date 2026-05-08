@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ type Hub struct {
 	inviteStore   domain.InviteStore
 	auditLogger   domain.AuditLogger
 	metrics       domain.MetricsCollector
+	startTime     time.Time
 }
 
 // NewHub creates a new WebSocket hub
@@ -53,6 +55,7 @@ func NewHub(auth domain.Authenticator, registry domain.AgentRegistry, inviteStor
 		router:        router,
 		auditLogger:   auditLogger,
 		metrics:       metrics,
+		startTime:     time.Now(),
 	}
 }
 
@@ -339,6 +342,13 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 			if ver, ok := meta["version"].(string); ok {
 				agent.Meta.Version = ver
 			}
+			if uname, ok := meta["username"].(string); ok {
+				agent.Meta.Username = uname
+			}
+			if idle, ok := meta["idle_seconds"].(float64); ok {
+				agent.Meta.IdleSeconds = int64(idle)
+			}
+			agent.Meta.Stats = h.parseStats(meta)
 		}
 	}
 
@@ -455,6 +465,17 @@ func (h *Hub) readAgentMessages(client *domain.ClientConnection) {
 		switch msg.Type {
 		case domain.MsgHeartbeat:
 			h.registry.UpdateHeartbeat(client.AgentID)
+			// Update idle time if the heartbeat carries it
+			if msg.Data != nil {
+				if meta, ok := msg.Data.(map[string]interface{}); ok {
+					if idle, ok := meta["idle_seconds"].(float64); ok {
+						if agent, err := h.registry.Get(client.AgentID); err == nil {
+							agent.Meta.IdleSeconds = int64(idle)
+							agent.Meta.Stats = h.parseStats(meta)
+						}
+					}
+				}
+			}
 
 		case domain.MsgStatus:
 			// Update agent metadata from status report
@@ -466,6 +487,13 @@ func (h *Hub) readAgentMessages(client *domain.ClientConnection) {
 					if persist, ok := meta["persistence_enabled"].(bool); ok {
 						agent.Meta.PersistenceEnabled = persist
 					}
+					if uname, ok := meta["username"].(string); ok {
+						agent.Meta.Username = uname
+					}
+					if idle, ok := meta["idle_seconds"].(float64); ok {
+						agent.Meta.IdleSeconds = int64(idle)
+					}
+					agent.Meta.Stats = h.parseStats(meta)
 				}
 				// Broadcast updated agent info to controllers
 				h.SendToControllers(domain.Message{
@@ -657,5 +685,54 @@ func (h *Hub) sendErrorToController(client *domain.ClientConnection, errMsg stri
 		Error: errMsg,
 	}:
 	default:
+	}
+}
+
+func (h *Hub) parseStats(meta map[string]interface{}) domain.SystemStats {
+	var s domain.SystemStats
+	if stats, ok := meta["stats"].(map[string]interface{}); ok {
+		if cpu, ok := stats["cpu"].(string); ok {
+			s.CPU = cpu
+		}
+		if ramTotal, ok := stats["ram_total"].(float64); ok {
+			s.RAMTotal = uint64(ramTotal)
+		}
+		if ramUsed, ok := stats["ram_used"].(float64); ok {
+			s.RAMUsed = uint64(ramUsed)
+		}
+		if diskTotal, ok := stats["disk_total"].(float64); ok {
+			s.DiskTotal = uint64(diskTotal)
+		}
+		if diskFree, ok := stats["disk_free"].(float64); ok {
+			s.DiskFree = uint64(diskFree)
+		}
+		if uptime, ok := stats["uptime"].(float64); ok {
+			s.Uptime = uint64(uptime)
+		}
+		if localIP, ok := stats["local_ip"].(string); ok {
+			s.LocalIP = localIP
+		}
+		if publicIP, ok := stats["public_ip"].(string); ok {
+			s.PublicIP = publicIP
+		}
+	}
+	return s
+}
+
+// GetMetrics returns real-time hub statistics
+func (h *Hub) GetMetrics() domain.ServerMetrics {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return domain.ServerMetrics{
+		OnlineAgents:      len(h.agents),
+		TotalAgents:       h.registry.Count(),
+		ActiveControllers: len(h.controllers),
+		WebSocketLoad:     float64(len(h.agents)+len(h.controllers)) / 1000.0 * 100.0, // Assuming 1000 cap
+		MemoryUsageBytes:  m.Alloc,
+		UptimeSeconds:     int64(time.Since(h.startTime).Seconds()),
 	}
 }

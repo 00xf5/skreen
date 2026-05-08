@@ -7,8 +7,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 )
+
+type FileInfo struct {
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	IsDir   bool   `json:"is_dir"`
+	ModTime int64  `json:"mod_time"`
+}
 
 // Transfer handles a single file upload/download session
 type Transfer struct {
@@ -197,4 +205,66 @@ func (m *Manager) GetTransfer(id string) *Transfer {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.transfers[id]
+}
+
+// ListDir returns a list of files in the specified path
+func (m *Manager) ListDir(path string) ([]FileInfo, error) {
+	if path == "" || path == "/" {
+		if runtime.GOOS == "windows" {
+			return m.listWindowsDrives()
+		}
+		path = "/"
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	files := make([]FileInfo, 0, len(entries))
+	for _, e := range entries {
+		info, _ := e.Info()
+		size := int64(0)
+		modTime := int64(0)
+		if info != nil {
+			size = info.Size()
+			modTime = info.ModTime().Unix()
+		}
+		files = append(files, FileInfo{
+			Name:    e.Name(),
+			Size:    size,
+			IsDir:   e.IsDir(),
+			ModTime: modTime,
+		})
+	}
+	return files, nil
+}
+
+func (m *Manager) listWindowsDrives() ([]FileInfo, error) {
+	var drives []FileInfo
+	for _, drive := range "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+		d := string(drive) + ":\\"
+		if _, err := os.Stat(d); err == nil {
+			drives = append(drives, FileInfo{
+				Name:  d,
+				IsDir: true,
+			})
+		}
+	}
+	return drives, nil
+}
+
+// FileOp performs file operations like delete/rename
+func (m *Manager) FileOp(action, path, newPath string) error {
+	switch action {
+	case "delete":
+		return os.RemoveAll(path)
+	case "rename":
+		if newPath == "" {
+			return fmt.Errorf("new path required for rename")
+		}
+		return os.Rename(path, newPath)
+	default:
+		return fmt.Errorf("unknown file op: %s", action)
+	}
 }

@@ -102,6 +102,35 @@
 }
 .close-btn:hover { color: #ff4d6a; border-color: rgba(255,77,106,0.3); }
 
+/* ── Advanced Controls ── */
+.hdr-select {
+  padding: 4px 8px;
+  background: var(--bg-surface, #111a22);
+  border: 1px solid var(--border, rgba(0,200,200,0.12));
+  border-radius: 6px;
+  color: var(--text, #c5d0dc);
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+}
+.hdr-select:focus { border-color: var(--border-active, rgba(0,200,200,0.4)); }
+
+.special-keys {
+  display: flex;
+  background: var(--bg-surface, #111a22);
+  border: 1px solid var(--border, rgba(0,200,200,0.12));
+  border-radius: 6px;
+  overflow: hidden;
+}
+.special-keys .hdr-btn {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.special-keys .hdr-btn + .hdr-btn {
+  border-left: 1px solid var(--border, rgba(0,200,200,0.12));
+}
+
 /* ── Quality selector ── */
 .quality-selector {
   display: flex;

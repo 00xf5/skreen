@@ -125,3 +125,24 @@ func mapKey(key string) string {
 	}
 	return k
 }
+
+func (m *Manager) HandleSpecialKey(key string) {
+	if !m.active.Load() {
+		return
+	}
+	log.Printf("[control] special key %s", key)
+	switch strings.ToLower(key) {
+	case "cad":
+		sendCAD()
+	case "win":
+		sendWinKey()
+	}
+}
+
+func (m *Manager) SetBlockInput(block bool) {
+	if !m.active.Load() {
+		return
+	}
+	log.Printf("[control] block input: %v", block)
+	setBlockInput(block)
+}

@@ -7,13 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
-	user32          = syscall.NewLazyDLL("user32.dll")
-	kernel32        = syscall.NewLazyDLL("kernel32.dll")
-	procMessageBoxW = user32.NewProc("MessageBoxW")
+	user32          = windows.NewLazySystemDLL("user32.dll")
+	kernel32        = windows.NewLazySystemDLL("kernel32.dll")
 	procShowWindow  = user32.NewProc("ShowWindow")
 	procGetConsoleW = kernel32.NewProc("GetConsoleWindow")
 )
@@ -55,6 +55,22 @@ func Install() bool {
 	// binary directly, hide the console and run as-is (development/testing mode).
 	HideConsole()
 	return false
+}
+
+var mutexHandle windows.Handle
+
+// EnsureSingleInstance prevents multiple agents from running on the same machine
+func EnsureSingleInstance(name string) {
+	utfName, _ := windows.UTF16PtrFromString(name)
+	handle, err := windows.CreateMutex(nil, false, utfName)
+	if err != nil {
+		return
+	}
+	if windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
+		windows.CloseHandle(handle)
+		os.Exit(0)
+	}
+	mutexHandle = handle
 }
 
 func copyFile(src, dst string) error {

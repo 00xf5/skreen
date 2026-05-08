@@ -4,7 +4,7 @@ import { useWebSocket } from './hooks/useWebSocket'
 import { Dashboard } from './components/Dashboard'
 import { AgentDetails } from './components/AgentDetails'
 import { ScreenView } from './components/ScreenView'
-import { FileTransfer } from './components/FileTransfer'
+import { FileManager } from './components/FileManager'
 import { Terminal } from './components/Terminal'
 import { CreateSession } from './components/CreateSession'
 import { ProcessManager } from './components/ProcessManager'
@@ -20,7 +20,7 @@ import './App.css'
 /* ── Main authenticated shell ── */
 function Shell() {
   const user = useAuth()
-  const { connected, agents, results, sendCommand, togglePersistence, refreshAgents, uninstallAgent } = useWebSocket()
+  const { connected, agents, metrics, results, sendCommand, togglePersistence, refreshAgents, uninstallAgent } = useWebSocket()
   const [showConnSettings, setShowConnSettings] = useState(false)
   const [newApiUrl, setNewApiUrl] = useState(localStorage.getItem('scon_api_url') || '')
 
@@ -68,7 +68,9 @@ function Shell() {
   }
 
   const handleSelectAgent = (id) => {
-    openTab(id, 'details', `${id.slice(0, 8)}`, '⚙')
+    const agent = agents.find(a => a.id === id)
+    const label = agent?.hostname || id.slice(0, 8)
+    openTab(id, 'details', label, '⚙')
   }
 
   const handleLogout = async () => {
@@ -77,10 +79,40 @@ function Shell() {
 
   const onlineCount = agents.filter(a => a.online).length
   const filtered = agents.filter(a =>
-    !searchQuery || a.id.toLowerCase().includes(searchQuery.toLowerCase())
+    !searchQuery ||
+    a.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (a.hostname || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (a.username || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
   const onlineAgents = filtered.filter(a => a.online)
   const offlineAgents = filtered.filter(a => !a.online)
+
+  // Format idle seconds into a human-readable label matching ScreenConnect style
+  const formatIdle = (seconds) => {
+    if (!seconds || seconds < 60) return 'Active'
+    if (seconds < 3600) return `Idle ${Math.floor(seconds / 60)}m`
+    if (seconds < 86400) return `Idle ${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
+    return `Idle ${Math.floor(seconds / 86400)}d`
+  }
+
+  // OS icon SVG paths (Windows / Linux / macOS fallback)
+  const OsIcon = ({ os }) => {
+    if (os === 'windows') return (
+      <svg className="os-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+      </svg>
+    )
+    if (os === 'linux') return (
+      <svg className="os-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.504 0C6 0 3.252 5.4 3.252 9.6c0 2.04.576 3.84 1.56 5.232-.336.576-.576 1.2-.576 1.824 0 1.968 1.584 3.552 3.6 3.576-.48.576-.744 1.32-.744 2.112 0 1.776 1.344 3.024 3.024 3.024.48 0 .936-.12 1.344-.312.24.936 1.08 1.632 2.088 1.632.96 0 1.776-.624 2.064-1.488.384.144.816.24 1.272.24 1.68 0 3.024-1.248 3.024-3.024 0-.792-.264-1.536-.744-2.112 2.016-.024 3.6-1.608 3.6-3.576 0-.624-.24-1.248-.576-1.824.984-1.392 1.56-3.192 1.56-5.232C20.748 5.4 18 0 12.504 0z"/>
+      </svg>
+    )
+    return (
+      <svg className="os-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+    )
+  }
 
   const initials = user?.displayName
     ? user.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -177,11 +209,18 @@ function Shell() {
               className={`agent-item ${tabs.find(t => t.id === activeTabId)?.agentId === agent.id ? 'selected' : ''}`}
               onClick={() => handleSelectAgent(agent.id)}
             >
-              <span className="agent-dot online" />
+              <OsIcon os={agent.os} />
               <div className="agent-item-info">
-                <div className="agent-item-name">{agent.id.slice(0, 12)}...</div>
-                <div className="agent-item-meta">Windows • Online</div>
+                <div className="agent-item-name">{agent.hostname || agent.id.slice(0, 12)}</div>
+                <div className="agent-item-meta">
+                  {agent.username ? `User: ${agent.username}` : 'Unknown'}
+                  {' • '}
+                  <span className={agent.idle_seconds > 60 ? 'idle-label' : 'active-label'}>
+                    {formatIdle(agent.idle_seconds)}
+                  </span>
+                </div>
               </div>
+              <span className="agent-dot online" />
             </div>
           ))}
 
@@ -192,12 +231,13 @@ function Shell() {
                 <span className="count">{offlineAgents.length}</span>
               </div>
               {offlineAgents.map(agent => (
-                <div key={agent.id} className="agent-item" onClick={() => handleSelectAgent(agent.id)}>
-                  <span className="agent-dot offline" />
+                <div key={agent.id} className="agent-item offline-item" onClick={() => handleSelectAgent(agent.id)}>
+                  <OsIcon os={agent.os} />
                   <div className="agent-item-info">
-                    <div className="agent-item-name">{agent.id.slice(0, 12)}...</div>
+                    <div className="agent-item-name">{agent.hostname || agent.id.slice(0, 12)}</div>
                     <div className="agent-item-meta">Offline</div>
                   </div>
+                  <span className="agent-dot offline" />
                 </div>
               ))}
             </>
@@ -281,19 +321,21 @@ function Shell() {
             </div>
           ))}
         </div>
-
         {/* ── Content ── */}
         <div className="tab-content">
           {tabs.map(tab => {
             if (tab.id !== activeTabId) return null
             switch (tab.type) {
               case 'dashboard':
-                return <Dashboard key="dash" agents={agents} onSelectAgent={handleSelectAgent} />
-              case 'details':
+                return <Dashboard key="dash" agents={agents} metrics={metrics} onSelectAgent={handleSelectAgent} />
+              case 'details': {
+                const agent = agents.find(a => a.id === tab.agentId)
                 return (
                   <div className="agent-workspace" key={tab.id}>
                     <AgentDetails
-                      agentId={tab.agentId}
+                      agent={agent}
+                      results={results}
+                      sendCommand={sendCommand}
                       onBack={() => setActiveTabId('dashboard')}
                       onTogglePersistence={togglePersistence}
                       onStartScreen={() => openTab(tab.agentId, 'screen', `${tab.agentId.slice(0,8)} Screen`, '🖥')}
@@ -308,10 +350,11 @@ function Shell() {
                     <Terminal agentId={tab.agentId} result={results[tab.agentId]} onCommand={sendCommand} />
                   </div>
                 )
+              }
               case 'screen':
                 return <ScreenView key={tab.id} agentId={tab.agentId} onClose={(e) => closeTab(e || {stopPropagation:()=>{}}, tab.id)} />
               case 'files':
-                return <FileTransfer key={tab.id} agentId={tab.agentId} />
+                return <FileManager key={tab.id} agentId={tab.agentId} />
               case 'processes':
                 return (
                   <div className="agent-workspace" key={tab.id}>

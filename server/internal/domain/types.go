@@ -36,6 +36,9 @@ const (
 	// Phase 2.5: Remote Control signaling
 	MsgInputMouse    MessageType = "input_mouse"
 	MsgInputKeyboard MessageType = "input_keyboard"
+	MsgInputSpecial  MessageType = "input_special"
+	MsgBlockInput    MessageType = "block_input"
+	MsgSetDisplay    MessageType = "set_display"
 	MsgControlReq    MessageType = "control_request"
 	MsgControlStop   MessageType = "control_stop"
 
@@ -174,6 +177,18 @@ const (
 	PrivSystem PrivilegeLevel = "system"
 )
 
+// SystemStats represents hardware telemetry
+type SystemStats struct {
+	CPU       string `json:"cpu"`
+	RAMTotal  uint64 `json:"ram_total"`
+	RAMUsed   uint64 `json:"ram_used"`
+	DiskTotal uint64 `json:"disk_total"`
+	DiskFree  uint64 `json:"disk_free"`
+	Uptime    uint64 `json:"uptime"`
+	LocalIP   string `json:"local_ip"`
+	PublicIP  string `json:"public_ip"`
+}
+
 // AgentMeta contains agent metadata
 type AgentMeta struct {
 	Hostname           string         `json:"hostname"`
@@ -181,6 +196,9 @@ type AgentMeta struct {
 	Version            string         `json:"version"`
 	Privilege          PrivilegeLevel `json:"privilege"`
 	PersistenceEnabled bool           `json:"persistence_enabled"`
+	Username           string         `json:"username"`    // currently logged-in user on the agent machine
+	IdleSeconds        int64          `json:"idle_seconds"` // seconds since last user input
+	Stats              SystemStats    `json:"stats"`
 }
 
 // CommandResult represents command execution result
@@ -195,6 +213,16 @@ type CommandResult struct {
 	CompletedAt time.Time     `json:"completed_at"`
 	Duration    time.Duration `json:"duration"`
 	Completed   bool          `json:"completed"`
+}
+
+// ServerMetrics represents real-time backend health
+type ServerMetrics struct {
+	OnlineAgents      int     `json:"online_agents"`
+	TotalAgents       int     `json:"total_agents"`
+	ActiveControllers int     `json:"active_controllers"`
+	WebSocketLoad     float64 `json:"websocket_load"`
+	MemoryUsageBytes  uint64  `json:"memory_usage_bytes"`
+	UptimeSeconds     int64   `json:"uptime_seconds"`
 }
 
 // ClientType identifies the type of WebSocket client

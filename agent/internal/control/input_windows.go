@@ -14,6 +14,7 @@ var (
 	procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
 	procmouse_event      = user32.NewProc("mouse_event")
 	prockeybd_event      = user32.NewProc("keybd_event")
+	procBlockInput       = user32.NewProc("BlockInput")
 )
 
 const (
@@ -134,4 +135,28 @@ func keybdToggle(key, state string) {
 	}
 
 	prockeybd_event.Call(uintptr(vk), 0, flags, 0)
+}
+
+func setBlockInput(block bool) {
+	b := 0
+	if block {
+		b = 1
+	}
+	procBlockInput.Call(uintptr(b))
+}
+
+func sendCAD() {
+	// Ctrl + Alt + Del (Note: Windows often protects true CAD from user-mode apps)
+	prockeybd_event.Call(uintptr(0x11), 0, 0, 0) // Ctrl down
+	prockeybd_event.Call(uintptr(0x12), 0, 0, 0) // Alt down
+	prockeybd_event.Call(uintptr(0x2E), 0, 0, 0) // Del down
+	prockeybd_event.Call(uintptr(0x2E), 0, KEYEVENTF_KEYUP, 0) // Del up
+	prockeybd_event.Call(uintptr(0x12), 0, KEYEVENTF_KEYUP, 0) // Alt up
+	prockeybd_event.Call(uintptr(0x11), 0, KEYEVENTF_KEYUP, 0) // Ctrl up
+}
+
+func sendWinKey() {
+	// Left Windows Key press and release
+	prockeybd_event.Call(uintptr(0x5B), 0, 0, 0)
+	prockeybd_event.Call(uintptr(0x5B), 0, KEYEVENTF_KEYUP, 0)
 }

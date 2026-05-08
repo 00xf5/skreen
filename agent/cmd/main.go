@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"scon/agent/internal/config"
@@ -21,15 +19,16 @@ import (
 	"scon/agent/internal/privilege"
 
 	"github.com/google/uuid"
+	"github.com/kardianos/service"
 )
 
 var (
 	Version    = "1.0.0"
-	// These are overridden at build time via: -ldflags "-X main.ServerHost=skreen-xyz.onrender.com -X main.ServerPort=443"
 	ServerHost = "localhost"
 	ServerPort = "8080"
 )
 
+const mutexName = "Global\\SkreenAgentMutex"
 
 // agentHandler implements connection.Handler callbacks
 type agentHandler struct {
@@ -68,7 +67,6 @@ func (h *agentHandler) GetStatus() (string, bool) {
 func (h *agentHandler) OnUninstall() error {
 	log.Println("🗑️ Received remote uninstall request...")
 	h.persistMgr.Disable()
-	// Optionally call installer.Uninstall() if it implements more complex cleanup
 	log.Println("👋 Agent uninstalled, shutting down.")
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -81,108 +79,121 @@ func (h *agentHandler) OnError(err error) {
 	log.Printf("Connection error: %v", err)
 }
 
-func main() {
-	if installer.Install() {
-		os.Exit(0)
-	}
+type program struct {
+	cfg     config.AgentConfig
+	handler *agentHandler
+	connMgr *connection.Manager
+	hb      *heartbeat.Heartbeat
+	cancel  context.CancelFunc
+}
 
-	log.Println("Skreen Agent starting...")
-
-	// Load configuration
-	cfg := loadConfig()
-
-	// Parse command line flags for code or installer name
-	var installerName string
-	for i, arg := range os.Args {
-		if (arg == "-code" || arg == "--code") && i+1 < len(os.Args) {
-			cfg.Code = os.Args[i+1]
-		}
-		if (arg == "-installer" || arg == "--installer") && i+1 < len(os.Args) {
-			installerName = os.Args[i+1]
-		}
-	}
-
-	// Fallback: Try to extract code and host from filename (e.g. skreen-agent-setup-ABCD-EFGH-api.scon.com.exe)
-	// Also handles Windows copy suffixes like " (2)" or " - Copy"
-	var fname string
-	if installerName != "" {
-		fname = installerName
-	} else if exe, err := os.Executable(); err == nil {
-		fname = filepath.Base(exe)
-	}
-
-	if fname != "" {
-		// Strip Windows copy suffixes before matching
-		fname = regexp.MustCompile(`\s*(\(\d+\)|- Copy)(\.exe)?$`).ReplaceAllString(fname, ".exe")
-
-		// Pattern 1: Flexible extraction
-		// Looks for skreen-agent-setup-[CODE]-[HOST].[any extension]
-		reFull := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9][a-z0-9.-]+[a-z0-9])`)
-		if matches := reFull.FindStringSubmatch(fname); len(matches) > 2 {
-			cfg.Code = matches[1]
-			extractedHost := strings.TrimSuffix(strings.TrimSuffix(matches[2], ".exe"), ".zip")
-			// Remove any trailing " (1)" or similar from host
-			if idx := strings.Index(extractedHost, " "); idx != -1 {
-				extractedHost = extractedHost[:idx]
-			}
-			cfg.Server.Host = extractedHost
-			cfg.Server.Port = 443
-			cfg.Server.TLS = true
-			log.Printf("Auto-configured from filename: Code=%s, Host=%s", cfg.Code, cfg.Server.Host)
-		} else {
-			// Pattern 2: Just Code
-			reCode := regexp.MustCompile(`(?i)[-_]([A-Z0-9]{4}-[A-Z0-9]{4})`)
-			if matches := reCode.FindStringSubmatch(fname); len(matches) > 1 {
-				cfg.Code = matches[1]
-				log.Printf("Extracted code from filename: %s", cfg.Code)
-			}
-		}
-	}
-
-	// Ensure agent ID
-	if cfg.Agent.ID == "" {
-		cfg.Agent.ID = loadOrGenerateID()
-	}
-
-	log.Printf("Agent ID: %s", cfg.Agent.ID)
-	log.Printf("Hostname: %s", cfg.Agent.Hostname)
-	log.Printf("Server: %s", cfg.GetWebSocketURL())
-
-	// Create handler
-	handler := &agentHandler{
-		exec:       executor.New(cfg.Behavior.CommandTimeout),
-		config:     cfg,
+func (p *program) Start(s service.Service) error {
+	log.Println("Starting service logic...")
+	p.handler = &agentHandler{
+		exec:       executor.New(p.cfg.Behavior.CommandTimeout),
+		config:     p.cfg,
 		persistMgr: persistence.New(),
 		privLevel:  privilege.Detect(),
 	}
 
-	log.Printf("Privilege level: %s", handler.privLevel)
-
-	// Create connection manager
-	connMgr := connection.NewManager(&cfg, handler)
-
-	// Create and start heartbeat
-	hb := heartbeat.New(cfg.Behavior.HeartbeatInterval, connMgr)
+	p.connMgr = connection.NewManager(&p.cfg, p.handler)
+	p.hb = heartbeat.New(p.cfg.Behavior.HeartbeatInterval, p.connMgr)
+	
 	ctx, cancel := context.WithCancel(context.Background())
-	go hb.Start(ctx)
+	p.cancel = cancel
 
-	// Start connection (with auto-reconnect)
-	go connMgr.Start()
+	go p.hb.Start(ctx)
+	go p.connMgr.Start()
 
-	// Wait for interrupt
-	log.Println("Press Ctrl+C to exit")
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	return nil
+}
 
-	log.Println("\n🛑 Shutting down...")
+func (p *program) Stop(s service.Service) error {
+	log.Println("Stopping service logic...")
+	if p.cancel != nil {
+		p.cancel()
+	}
+	if p.hb != nil {
+		p.hb.Stop()
+	}
+	if p.connMgr != nil {
+		p.connMgr.Stop()
+	}
+	return nil
+}
 
-	// Cleanup
-	cancel()
-	hb.Stop()
-	connMgr.Stop()
+func main() {
+	// Hide console on Windows immediately
+	installer.HideConsole()
 
-	log.Println("👋 Agent stopped")
+	// Parse flags manually to handle service commands
+	svcCommand := ""
+	for _, arg := range os.Args {
+		if arg == "install" || arg == "uninstall" || arg == "start" || arg == "stop" || arg == "restart" {
+			svcCommand = arg
+			break
+		}
+	}
+
+	cfg := loadConfig()
+	
+	// Filename-based auto-configuration
+	if exe, err := os.Executable(); err == nil {
+		fname := filepath.Base(exe)
+		// Pattern: skreen-agent-setup-[CODE]-[HOST].exe
+		// Strip Windows copy suffixes: " (1)", "- Copy"
+		fname = regexp.MustCompile(`\s*(\(\d+\)|- Copy)(\.exe)?$`).ReplaceAllString(fname, ".exe")
+		
+		re := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9][a-z0-9.-]+[a-z0-9])`)
+		if matches := re.FindStringSubmatch(fname); len(matches) > 2 {
+			cfg.Code = matches[1]
+			host := strings.TrimSuffix(strings.TrimSuffix(matches[2], ".exe"), ".zip")
+			cfg.Server.Host = host
+			cfg.Server.Port = 443
+			cfg.Server.TLS = true
+			log.Printf("Auto-configured from filename: Code=%s, Host=%s", cfg.Code, cfg.Server.Host)
+		}
+	}
+
+	// Ensure ID
+	if cfg.Agent.ID == "" {
+		cfg.Agent.ID = loadOrGenerateID()
+	}
+
+	svcConfig := &service.Config{
+		Name:        "SkreenAgent",
+		DisplayName: "Skreen Remote Agent",
+		Description: "Professional Remote Administration and Telemetry Agent",
+		Arguments:   []string{"run"}, // Default run command when started by SCM
+	}
+
+	prg := &program{
+		cfg: cfg,
+	}
+
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if svcCommand != "" {
+		err = service.Control(s, svcCommand)
+		if err != nil {
+			log.Fatalf("Service control %s failed: %v", svcCommand, err)
+		}
+		fmt.Printf("Service %s success\n", svcCommand)
+		return
+	}
+
+	// Single instance mutex for non-service commands
+	if svcCommand == "" {
+		installer.EnsureSingleInstance(mutexName)
+	}
+
+	err = s.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 // loadConfig loads configuration from various sources

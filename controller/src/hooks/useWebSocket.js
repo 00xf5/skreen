@@ -17,6 +17,15 @@ export function useWebSocket() {
   const [results, setResults] = useState({})
   const pollRef = useRef(null)
 
+  const [metrics, setMetrics] = useState({
+    online_agents: 0,
+    total_agents: 0,
+    active_controllers: 0,
+    websocket_load: 0,
+    memory_usage_bytes: 0,
+    uptime_seconds: 0
+  })
+
   // Fetch agents from REST API and merge with current state
   const fetchAgentsRest = useCallback(async () => {
     try {
@@ -26,14 +35,12 @@ export function useWebSocket() {
       if (Array.isArray(json.agents)) {
         setAgents(prev => {
           const liveIds = new Set(prev.filter(a => a.online).map(a => a.id))
-          // Merge: keep live-WS online status, add API agents as offline if not already live
           const merged = [...prev]
           json.agents.forEach(apiAgent => {
             const exists = merged.find(a => a.id === apiAgent.id)
             if (!exists) {
               merged.push({ ...apiAgent })
             } else {
-              // Update metadata but keep live online status
               const idx = merged.indexOf(exists)
               merged[idx] = { ...apiAgent, online: liveIds.has(apiAgent.id) ? true : apiAgent.online }
             }
@@ -41,20 +48,35 @@ export function useWebSocket() {
           return merged
         })
       }
-    } catch (_) {
-      // silently ignore fetch errors
-    }
+    } catch (_) {}
+  }, [])
+
+  // Fetch server metrics
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/api/metrics`)
+      if (res.ok) {
+        const json = await res.json()
+        setMetrics(json)
+      }
+    } catch (_) {}
   }, [])
 
   useEffect(() => {
     // Connect on mount
     wsService.connect()
 
-    // Fetch once immediately from REST
+    // Fetch once immediately
     fetchAgentsRest()
+    fetchMetrics()
 
-    // Poll every 10 seconds to catch agents that registered via REST but not yet WS
-    pollRef.current = setInterval(fetchAgentsRest, 10000)
+    // Poll every 10 seconds
+    pollRef.current = setInterval(() => {
+      fetchAgentsRest()
+      fetchMetrics()
+    }, 10000)
+
+    // ... rest of useEffect
 
     // Setup listeners
     const unsubscribeConnected = wsService.on('connected', () => {
@@ -140,6 +162,7 @@ export function useWebSocket() {
   return {
     connected,
     agents,
+    metrics,
     results,
     sendCommand,
     togglePersistence,

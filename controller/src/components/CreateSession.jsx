@@ -90,6 +90,23 @@ export function CreateSession({ onClose }) {
               <code>{result.join_url}</code>
             </div>
 
+            <div className="deployment-builder">
+              <div className="db-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>Direct Deployment</span>
+              </div>
+              <p>Download a pre-configured agent binary for this session.</p>
+              <button 
+                className="download-btn" 
+                onClick={() => {
+                  const SERVER = (localStorage.getItem('scon_api_url') || import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
+                  window.location.href = `${SERVER}/download/agent?code=${result.code}`
+                }}
+              >
+                Download .EXE Installer
+              </button>
+            </div>
+
             <div className="session-details">
               <div className="sd-row"><span>Company</span><strong>{result.company}</strong></div>
               <div className="sd-row"><span>Technician</span><strong>{result.technician}</strong></div>

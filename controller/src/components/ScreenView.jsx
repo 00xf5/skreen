@@ -2,6 +2,15 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { wsService } from '../services/websocket'
 import './ScreenView.css'
 
+// Resolve the backend API base URL
+function getApiBase() {
+  const stored = localStorage.getItem('scon_api_url')
+  if (stored) return stored.replace(/\/$/, '')
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl) return envUrl.replace(/\/$/, '')
+  return 'http://localhost:8080'
+}
+
 export function ScreenView({ agentId, onClose }) {
   const [status, setStatus] = useState('Connecting...')
   const [error, setError] = useState(null)
@@ -10,6 +19,9 @@ export function ScreenView({ agentId, onClose }) {
   const [toolbarVisible, setToolbarVisible] = useState(true)
   const [quality, setQuality] = useState('balanced') // 'low' | 'balanced' | 'high'
   const [clipboardStatus, setClipboardStatus] = useState(null) // 'syncing' | 'synced' | 'error'
+  const [displayCount, setDisplayCount] = useState(1)
+  const [activeDisplay, setActiveDisplay] = useState(0)
+  const [inputBlocked, setInputBlocked] = useState(false)
 
   const pcRef = useRef(null)
   const imgRef = useRef(null)
@@ -19,95 +31,119 @@ export function ScreenView({ agentId, onClose }) {
 
   // ── WebRTC Setup ──────────────────────────────────────────
   useEffect(() => {
-    wsService.send({ type: 'start_stream', agent_id: agentId })
+    let isActive = true
+    let pc = null
 
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { 
-          urls: 'turn:127.0.0.1:3478',
-          username: 'scon',
-          credential: 'scon_super_secret_webrtc_key'
-        }
-      ]
-    })
-    pcRef.current = pc
+    let unsubOffer = () => {}
+    let unsubIce = () => {}
+    let unsubStopped = () => {}
+    let unsubControl = () => {}
+    let unsubClipboard = () => {}
+    let unsubReady = () => {}
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        wsService.send({ type: 'ice_candidate', agent_id: agentId, candidate: JSON.stringify(event.candidate) })
-      }
-    }
+    async function initWebRTC() {
+      try {
+        const res = await fetch(`${getApiBase()}/api/webrtc-config`)
+        const config = await res.json()
+        const iceServers = config.iceServers || []
 
-    pc.oniceconnectionstatechange = () => {
-      const state = pc.iceConnectionState
-      if (state === 'failed' || state === 'disconnected') {
-        setError('Connection lost — attempting recovery...')
-        setStatus('disconnected')
-        // Auto-recover: restart ICE
-        pc.restartIce()
-      } else if (state === 'connected') {
-        setStatus('Connected')
-        setError(null)
-      } else if (state === 'checking') {
-        setStatus('Connecting...')
-      }
-    }
+        if (!isActive) return
 
-    pc.ondatachannel = (event) => {
-      const channel = event.channel
-      if (channel.label === 'screen') {
-        channel.onmessage = (e) => {
-          const blob = new Blob([e.data], { type: 'image/jpeg' })
-          const url = URL.createObjectURL(blob)
-          if (imgRef.current) {
-            if (imgRef.current.src?.startsWith('blob:')) URL.revokeObjectURL(imgRef.current.src)
-            imgRef.current.src = url
+        // Tell agent to start stream using these ICE servers
+        wsService.send({ type: 'start_stream', agent_id: agentId, data: { iceServers } })
+
+        pc = new RTCPeerConnection({ iceServers })
+        pcRef.current = pc
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            wsService.send({ type: 'ice_candidate', agent_id: agentId, candidate: JSON.stringify(event.candidate) })
           }
         }
+
+        pc.oniceconnectionstatechange = () => {
+          const state = pc.iceConnectionState
+          if (state === 'failed' || state === 'disconnected') {
+            setError('Connection lost — attempting recovery...')
+            setStatus('disconnected')
+            pc.restartIce()
+          } else if (state === 'connected') {
+            setStatus('Connected')
+            setError(null)
+          } else if (state === 'checking') {
+            setStatus('Connecting...')
+          }
+        }
+
+        pc.ondatachannel = (event) => {
+          const channel = event.channel
+          if (channel.label === 'screen') {
+            channel.onmessage = (e) => {
+              const blob = new Blob([e.data], { type: 'image/jpeg' })
+              const url = URL.createObjectURL(blob)
+              if (imgRef.current) {
+                if (imgRef.current.src?.startsWith('blob:')) URL.revokeObjectURL(imgRef.current.src)
+                imgRef.current.src = url
+              }
+            }
+          }
+        }
+
+        unsubOffer = wsService.on('webrtc_offer', async (msg) => {
+          if (msg.agent_id !== agentId) return
+          try {
+            await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp })
+            const answer = await pc.createAnswer()
+            await pc.setLocalDescription(answer)
+            wsService.send({ type: 'webrtc_answer', agent_id: agentId, sdp: answer.sdp })
+          } catch (err) {
+            console.error('Offer handling failed:', err)
+            setError('Failed to negotiate connection')
+          }
+        })
+
+        unsubIce = wsService.on('ice_candidate', async (msg) => {
+          if (msg.agent_id !== agentId) return
+          try { await pc.addIceCandidate(JSON.parse(msg.candidate)) } catch {}
+        })
+
+        unsubStopped = wsService.on('stream_stopped', (msg) => {
+          if (msg.agent_id === agentId) setError('Stream ended by agent')
+        })
+
+        unsubControl = wsService.on('control_request', (msg) => {
+          if (msg.agent_id !== agentId) return
+          if (msg.output === 'approved') setHasControl(true)
+          else setHasControl(false)
+        })
+
+        unsubClipboard = wsService.on('clipboard_data', (msg) => {
+          if (msg.agent_id !== agentId) return
+          if (msg.data) {
+            navigator.clipboard.writeText(msg.data).then(() => {
+              setClipboardStatus('synced')
+              setTimeout(() => setClipboardStatus(null), 2000)
+            }).catch(() => setClipboardStatus('error'))
+          }
+        })
+
+        unsubReady = wsService.on('stream_ready', (msg) => {
+          if (msg.agent_id !== agentId) return
+          if (msg.data && msg.data.displays) {
+            setDisplayCount(msg.data.displays)
+          }
+        })
+      } catch (err) {
+        console.error('Failed to fetch WebRTC config:', err)
+        setError('Failed to load connection settings')
       }
     }
 
-    const unsubOffer = wsService.on('webrtc_offer', async (msg) => {
-      if (msg.agent_id !== agentId) return
-      try {
-        await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp })
-        const answer = await pc.createAnswer()
-        await pc.setLocalDescription(answer)
-        wsService.send({ type: 'webrtc_answer', agent_id: agentId, sdp: answer.sdp })
-      } catch (err) {
-        console.error('Offer handling failed:', err)
-        setError('Failed to negotiate connection')
-      }
-    })
-
-    const unsubIce = wsService.on('ice_candidate', async (msg) => {
-      if (msg.agent_id !== agentId) return
-      try { await pc.addIceCandidate(JSON.parse(msg.candidate)) } catch {}
-    })
-
-    const unsubStopped = wsService.on('stream_stopped', (msg) => {
-      if (msg.agent_id === agentId) setError('Stream ended by agent')
-    })
-
-    const unsubControl = wsService.on('control_request', (msg) => {
-      if (msg.agent_id !== agentId) return
-      if (msg.output === 'approved') setHasControl(true)
-      else { setHasControl(false) }
-    })
-
-    const unsubClipboard = wsService.on('clipboard_data', (msg) => {
-      if (msg.agent_id !== agentId) return
-      if (msg.data) {
-        navigator.clipboard.writeText(msg.data).then(() => {
-          setClipboardStatus('synced')
-          setTimeout(() => setClipboardStatus(null), 2000)
-        }).catch(() => setClipboardStatus('error'))
-      }
-    })
+    initWebRTC()
 
     return () => {
-      unsubOffer(); unsubIce(); unsubStopped(); unsubControl(); unsubClipboard()
+      isActive = false
+      unsubOffer(); unsubIce(); unsubStopped(); unsubControl(); unsubClipboard(); unsubReady()
       wsService.send({ type: 'stop_stream', agent_id: agentId })
       wsService.send({ type: 'control_stop', agent_id: agentId })
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
@@ -241,9 +277,31 @@ export function ScreenView({ agentId, onClose }) {
     if (hasControl) {
       wsService.send({ type: 'control_stop', agent_id: agentId })
       setHasControl(false)
+      if (inputBlocked) {
+        setInputBlocked(false)
+        wsService.send({ type: 'block_input', agent_id: agentId, data: false })
+      }
     } else {
       wsService.send({ type: 'control_request', agent_id: agentId })
     }
+  }
+
+  // ── Advanced Controls ─────────────────────────────────────
+  const handleSpecialKey = (key) => {
+    if (!hasControl) return
+    wsService.send({ type: 'input_special', agent_id: agentId, key })
+  }
+
+  const toggleBlockInput = () => {
+    if (!hasControl) return
+    const next = !inputBlocked
+    setInputBlocked(next)
+    wsService.send({ type: 'block_input', agent_id: agentId, data: next })
+  }
+
+  const changeDisplay = (idx) => {
+    setActiveDisplay(idx)
+    wsService.send({ type: 'set_display', agent_id: agentId, data: idx })
   }
 
   // ── Status label ──────────────────────────────────────────
@@ -267,6 +325,23 @@ export function ScreenView({ agentId, onClose }) {
             <span className={`status-indicator ${statusClass}`}>{statusLabel}</span>
           </div>
           <div className="header-controls">
+            {displayCount > 1 && (
+              <select className="hdr-select" value={activeDisplay} onChange={e => changeDisplay(Number(e.target.value))}>
+                {Array.from({length: displayCount}).map((_, i) => (
+                  <option key={i} value={i}>Display {i + 1}</option>
+                ))}
+              </select>
+            )}
+            
+            <div className="special-keys">
+              <button className="hdr-btn" onClick={() => handleSpecialKey('cad')} title="Send Ctrl-Alt-Del" disabled={!hasControl}>CAD</button>
+              <button className="hdr-btn" onClick={() => handleSpecialKey('win')} title="Send Windows Key" disabled={!hasControl}>Win</button>
+            </div>
+
+            <button className={`hdr-btn ${inputBlocked ? 'active' : ''}`} onClick={toggleBlockInput} title="Block Remote Input" disabled={!hasControl}>
+              {inputBlocked ? '🔒 Blocked' : '🔓 Block'}
+            </button>
+
             <div className="quality-selector">
               {['low', 'balanced', 'high'].map(q => (
                 <button key={q} className={`q-btn ${quality === q ? 'active' : ''}`} onClick={() => setQualityMode(q)}>
@@ -290,6 +365,24 @@ export function ScreenView({ agentId, onClose }) {
           <span className={`stream-dot ${status === 'Connected' ? 'live' : 'dead'}`} />
           <span className="ft-status">{statusLabel}</span>
           <div className="ft-sep" />
+
+          {displayCount > 1 && (
+            <select className="hdr-select" value={activeDisplay} onChange={e => changeDisplay(Number(e.target.value))}>
+              {Array.from({length: displayCount}).map((_, i) => (
+                <option key={i} value={i}>Display {i + 1}</option>
+              ))}
+            </select>
+          )}
+
+          <div className="special-keys">
+            <button className="hdr-btn" onClick={() => handleSpecialKey('cad')} title="Send Ctrl-Alt-Del" disabled={!hasControl}>CAD</button>
+            <button className="hdr-btn" onClick={() => handleSpecialKey('win')} title="Send Windows Key" disabled={!hasControl}>Win</button>
+          </div>
+
+          <button className={`hdr-btn ${inputBlocked ? 'active' : ''}`} onClick={toggleBlockInput} title="Block Remote Input" disabled={!hasControl}>
+            {inputBlocked ? '🔒 Blocked' : '🔓 Block'}
+          </button>
+
           <div className="quality-selector">
             {['low', 'balanced', 'high'].map(q => (
               <button key={q} className={`q-btn ${quality === q ? 'active' : ''}`} onClick={() => setQualityMode(q)}>

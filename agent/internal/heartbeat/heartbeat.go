@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"scon/agent/internal/connection"
+	"scon/agent/internal/sysinfo"
 )
 
 // Heartbeat manages periodic heartbeat messages to the server
@@ -79,7 +80,7 @@ func (h *Heartbeat) Stop() {
 	close(h.stopCh)
 }
 
-// send transmits a heartbeat message
+// send transmits a heartbeat message with the current idle time.
 func (h *Heartbeat) send() {
 	if !h.sender.IsConnected() {
 		return
@@ -89,6 +90,10 @@ func (h *Heartbeat) send() {
 		Type:      connection.MsgHeartbeat,
 		AgentID:   h.sender.GetAgentID(),
 		Timestamp: time.Now().Unix(),
+		Data: map[string]interface{}{
+			"idle_seconds": sysinfo.GetIdleSeconds(),
+			"stats":        sysinfo.GetSystemStats(),
+		},
 	}
 
 	if err := h.sender.Send(msg); err != nil {

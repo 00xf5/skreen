@@ -20,6 +20,8 @@ import (
 	"scon/agent/internal/fs"
 	"scon/agent/internal/proc"
 	"scon/agent/internal/screenshare"
+	"scon/agent/internal/sysinfo"
+	"path/filepath"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -50,6 +52,9 @@ const (
 	// Phase 2.5: WebRTC signaling
 	MsgInputMouse    MessageType = "input_mouse"
 	MsgInputKeyboard MessageType = "input_keyboard"
+	MsgInputSpecial  MessageType = "input_special"
+	MsgBlockInput    MessageType = "block_input"
+	MsgSetDisplay    MessageType = "set_display"
 	MsgControlReq    MessageType = "control_request"
 	MsgControlStop   MessageType = "control_stop"
 	// Phase 3: File Transfer
@@ -65,6 +70,8 @@ const (
 	MsgProcessKill   MessageType = "process_kill"
 	MsgStreamQuality MessageType = "stream_quality"
 	MsgUninstall     MessageType = "uninstall"
+	MsgFileList      MessageType = "file_list"
+	MsgFileOp        MessageType = "file_op"
 )
 
 // Message is the protocol envelope
@@ -94,6 +101,7 @@ type Message struct {
 	TransferID string `json:"transfer_id,omitempty"`
 	Action     string `json:"action,omitempty"`      // "upload", "download"
 	Path       string `json:"path,omitempty"`        // file path
+	NewPath    string `json:"new_path,omitempty"`    // for renames
 	FileSize   int64  `json:"file_size,omitempty"`
 	ChunkIndex int    `json:"chunk_index,omitempty"`
 	ChunkCount int    `json:"chunk_count,omitempty"`
@@ -273,9 +281,12 @@ func (m *Manager) connect() error {
 		Code:      m.config.Code,
 		Timestamp: time.Now().Unix(),
 		Data: map[string]interface{}{
-			"hostname": hostname,
-			"os":       runtime.GOOS,
-			"version":  "1.0.0",
+			"hostname":     hostname,
+			"os":           runtime.GOOS,
+			"version":      "1.0.0",
+			"username":     sysinfo.GetUsername(),
+			"idle_seconds": sysinfo.GetIdleSeconds(),
+			"stats":        sysinfo.GetSystemStats(),
 		},
 	}
 
@@ -377,7 +388,7 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 			m.Send(result)
 
 		case MsgStartStream:
-			m.handleStartStream()
+			m.handleStartStream(msg)
 
 		case MsgStopStream:
 			m.handleStopStream()
@@ -391,7 +402,13 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 					log.Printf("SetAnswer failed: %v", err)
 				} else {
 					sess.StartCapture()
-					m.Send(Message{Type: MsgStreamReady, AgentID: m.config.Agent.ID})
+					m.Send(Message{
+						Type:    MsgStreamReady,
+						AgentID: m.config.Agent.ID,
+						Data: map[string]interface{}{
+							"displays": screenshare.NumDisplays(),
+						},
+					})
 				}
 			}
 
@@ -419,6 +436,63 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 
 		case MsgInputKeyboard:
 			m.controlMgr.HandleKeyboard(msg.Key, msg.KeyState)
+
+		case MsgInputSpecial:
+			m.controlMgr.HandleSpecialKey(msg.Key)
+
+		case MsgBlockInput:
+			if block, ok := msg.Data.(bool); ok {
+				m.controlMgr.SetBlockInput(block)
+			}
+
+		case MsgSetDisplay:
+			m.sessionMu.Lock()
+			sess := m.screenSess
+			m.sessionMu.Unlock()
+			if sess != nil {
+				if idx, ok := msg.Data.(float64); ok {
+					sess.SetDisplay(int(idx))
+				}
+			}
+
+		case MsgFileList:
+			files, err := m.fsMgr.ListDir(msg.Path)
+			result := Message{
+				Type:    MsgFileList,
+				AgentID: m.config.Agent.ID,
+				Path:    msg.Path,
+			}
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Data = files
+			}
+			m.Send(result)
+
+		case MsgFileOp:
+			err := m.fsMgr.FileOp(msg.Action, msg.Path, msg.NewPath)
+			result := Message{
+				Type:    MsgFileOp,
+				AgentID: m.config.Agent.ID,
+				Action:  msg.Action,
+				Path:    msg.Path,
+			}
+			if err != nil {
+				result.Error = err.Error()
+			}
+			m.Send(result)
+
+			// Auto-refresh directory if successful
+			if err == nil {
+				dir := filepath.Dir(msg.Path)
+				files, _ := m.fsMgr.ListDir(dir)
+				m.Send(Message{
+					Type:    MsgFileList,
+					AgentID: m.config.Agent.ID,
+					Path:    dir,
+					Data:    files,
+				})
+			}
 
 		case MsgFileReq:
 			if msg.Action == "cancel" {
@@ -632,7 +706,7 @@ func (m *Manager) resetAttempts() {
 }
 
 // handleStartStream initializes the WebRTC screenshare session
-func (m *Manager) handleStartStream() {
+func (m *Manager) handleStartStream(msg Message) {
 	m.sessionMu.Lock()
 	defer m.sessionMu.Unlock()
 
@@ -640,7 +714,34 @@ func (m *Manager) handleStartStream() {
 		m.screenSess.Stop()
 	}
 
+	// Parse ICE servers from controller
+	var iceServers []webrtc.ICEServer
+	if data, ok := msg.Data.(map[string]interface{}); ok {
+		if servers, ok := data["iceServers"].([]interface{}); ok {
+			for _, s := range servers {
+				if smap, ok := s.(map[string]interface{}); ok {
+					var ice webrtc.ICEServer
+					if urls, ok := smap["urls"].([]interface{}); ok {
+						for _, u := range urls {
+							if str, ok := u.(string); ok {
+								ice.URLs = append(ice.URLs, str)
+							}
+						}
+					}
+					if user, ok := smap["username"].(string); ok {
+						ice.Username = user
+					}
+					if cred, ok := smap["credential"].(string); ok {
+						ice.Credential = cred
+					}
+					iceServers = append(iceServers, ice)
+				}
+			}
+		}
+	}
+
 	sess, err := screenshare.NewSession(
+		iceServers,
 		func(candidateJSON string) {
 			m.Send(Message{
 				Type:      MsgICECandidate,
