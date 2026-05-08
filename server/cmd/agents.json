@@ -1,0 +1,37 @@
+[
+  {
+    "ID": "682af626-b0bb-4e66-8dae-b6356824edd2",
+    "Conn": {},
+    "Token": "fb4022786a6cc19ba67c6db0dbb5eb286153ff0e6bf9cd99491e3876dd98763c",
+    "TokenHash": "fb4022786a6cc19ba67c6db0dbb5eb286153ff0e6bf9cd99491e3876dd98763c",
+    "IsRevoked": false,
+    "LastSeen": "2026-05-08T14:08:37.5740725-07:00",
+    "RegisteredAt": "2026-05-08T14:08:37.5740725-07:00",
+    "IsOnline": true,
+    "Meta": {
+      "hostname": "shivudu",
+      "os": "windows",
+      "version": "1.0.0",
+      "privilege": "",
+      "persistence_enabled": false,
+      "username": "shiver",
+      "idle_seconds": 8,
+      "stats": {
+        "cpu": "Intel(R) Pentium(R) Silver N5000 CPU @ 1.10GHz",
+        "ram_total": 4108922880,
+        "ram_used": 3456290816,
+        "disk_total": 118485139456,
+        "disk_free": 28266766336,
+        "uptime": 30847,
+        "local_ip": "192.168.18.4",
+        "public_ip": "105.127.13.36"
+      }
+    },
+    "Credentials": null,
+    "SeqNum": 0,
+    "SeenNonces": {},
+    "CommandCount": 0,
+    "FailedCount": 0,
+    "LastLatency": 0
+  }
+]

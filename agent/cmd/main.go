@@ -66,7 +66,8 @@ func (h *agentHandler) GetStatus() (string, bool) {
 
 func (h *agentHandler) OnUninstall() error {
 	log.Println("🗑️ Received remote uninstall request...")
-	h.persistMgr.Disable()
+	h.persistMgr.Disable()         // Remove registry Run key
+	persistence.SelfDelete()        // Schedule binary for deletion on reboot
 	log.Println("👋 Agent uninstalled, shutting down.")
 	go func() {
 		time.Sleep(2 * time.Second)

