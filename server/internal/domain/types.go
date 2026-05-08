@@ -41,6 +41,7 @@ const (
 	MsgSetDisplay    MessageType = "set_display"
 	MsgControlReq    MessageType = "control_request"
 	MsgControlStop   MessageType = "control_stop"
+	MsgSetHiddenMode MessageType = "set_hidden_mode"
 
 	// Phase 3: File Transfer
 	MsgFileReq   MessageType = "file_req"

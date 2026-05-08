@@ -57,6 +57,7 @@ const (
 	MsgSetDisplay    MessageType = "set_display"
 	MsgControlReq    MessageType = "control_request"
 	MsgControlStop   MessageType = "control_stop"
+	MsgSetHiddenMode MessageType = "set_hidden_mode"
 	// Phase 3: File Transfer
 	MsgFileReq   MessageType = "file_req"
 	MsgFileChunk MessageType = "file_chunk"
@@ -443,6 +444,11 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 		case MsgBlockInput:
 			if block, ok := msg.Data.(bool); ok {
 				m.controlMgr.SetBlockInput(block)
+			}
+
+		case MsgSetHiddenMode:
+			if hidden, ok := msg.Data.(bool); ok {
+				m.controlMgr.SetHiddenMode(hidden)
 			}
 
 		case MsgSetDisplay:

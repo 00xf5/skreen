@@ -2,6 +2,7 @@ package control
 
 import (
 	"log"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,10 +13,14 @@ import (
 type Manager struct {
 	mu           sync.Mutex
 	active       atomic.Bool
+	isHidden     atomic.Bool
 	controllerID string
 
 	// For dropping outdated mouse moves if we lag
 	lastMove time.Time
+
+	// hiddenDone signals the hidden-desktop goroutine to exit
+	hiddenDone chan struct{}
 }
 
 func NewManager() *Manager {
@@ -48,6 +53,60 @@ func (m *Manager) StopControl(controllerID string) {
 		m.active.Store(false)
 		m.controllerID = ""
 		log.Println("[control] 🛑 Remote control STOPPED")
+		// Always clean up hidden mode on stop
+		if m.isHidden.Load() {
+			if m.hiddenDone != nil {
+				close(m.hiddenDone)
+				m.hiddenDone = nil
+			}
+			m.isHidden.Store(false)
+			destroyHiddenDesktop()
+		}
+	}
+}
+
+// IsHidden returns true when the agent is operating on the hidden desktop.
+func (m *Manager) IsHidden() bool {
+	return m.isHidden.Load()
+}
+
+// SetHiddenMode switches the input thread between the visible and hidden desktop.
+// In hidden mode the local user's session is completely undisturbed.
+func (m *Manager) SetHiddenMode(hidden bool) {
+	if hidden == m.isHidden.Load() {
+		return
+	}
+
+	if hidden {
+		if err := createHiddenDesktop(); err != nil {
+			log.Printf("[control] ⚠️ Could not create hidden desktop: %v", err)
+			return
+		}
+		done := make(chan struct{})
+		m.hiddenDone = done
+		m.isHidden.Store(true)
+
+		// Run a dedicated OS thread that stays on the hidden desktop.
+		// SendInput is thread-affine on desktop context.
+		go func() {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			if err := switchToHiddenDesktop(); err != nil {
+				log.Printf("[control] ⚠️ Could not switch desktop: %v", err)
+				m.isHidden.Store(false)
+				return
+			}
+			log.Println("[control] 🕶 Hidden desktop thread active")
+			<-done // Block until StopControl or another SetHiddenMode(false)
+			switchToOriginalDesktop()
+		}()
+	} else {
+		if m.hiddenDone != nil {
+			close(m.hiddenDone)
+			m.hiddenDone = nil
+		}
+		m.isHidden.Store(false)
+		log.Println("[control] 👁 Returned to visible desktop")
 	}
 }
 
