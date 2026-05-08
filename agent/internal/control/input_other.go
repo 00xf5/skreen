@@ -21,3 +21,5 @@ func setBlockInput(block bool) {}
 func sendCAD() {}
 
 func sendWinKey() {}
+
+func mouseScroll(delta int) {}

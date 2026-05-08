@@ -266,6 +266,14 @@ export function ScreenView({ agentId, onClose }) {
     wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'move', x, y })
   }
 
+  const handleWheel = (e) => {
+    if (!hasControl) return
+    e.preventDefault()
+    // Normalise deltaY to a small integer — 1 notch per ~100px scrolled
+    const delta = Math.sign(e.deltaY) * Math.max(1, Math.round(Math.abs(e.deltaY) / 100))
+    wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'scroll', y: -delta })
+  }
+
   const handleMouseAction = (e, state) => {
     if (!hasControl) return
     e.preventDefault()
@@ -423,6 +431,7 @@ export function ScreenView({ agentId, onClose }) {
           alt="Agent Screen"
           onMouseDown={(e) => handleMouseAction(e, 'down')}
           onMouseUp={(e) => handleMouseAction(e, 'up')}
+          onWheel={handleWheel}
           onContextMenu={(e) => e.preventDefault()}
           draggable={false}
         />

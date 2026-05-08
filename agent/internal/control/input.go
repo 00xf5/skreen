@@ -78,12 +78,18 @@ func (m *Manager) HandleMouse(event string, x, y float64, button, state string) 
 		realY := int(y * float64(height))
 
 		currentX, currentY := getMousePos()
-		
 		go smoothMove(currentX, currentY, realX, realY)
 
 	case "click":
 		log.Printf("[control] click %s %s", button, state)
 		mouseToggle(button, state)
+
+	case "scroll":
+		// y holds the scroll delta: positive = up, negative = down
+		delta := int(y)
+		if delta != 0 {
+			mouseScroll(delta)
+		}
 	}
 }
 

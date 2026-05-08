@@ -55,7 +55,11 @@ func (h *agentHandler) OnCommand(msg connection.Message) (string, error) {
 func (h *agentHandler) OnTogglePersistence(enabled bool) error {
 	log.Printf("Persistence toggle: %v", enabled)
 	if enabled {
-		return h.persistMgr.Enable("")
+		exePath, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("could not get executable path: %w", err)
+		}
+		return h.persistMgr.Enable(exePath)
 	}
 	return h.persistMgr.Disable()
 }

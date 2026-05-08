@@ -3,21 +3,19 @@
 package privilege
 
 import (
-	"golang.org/x/sys/windows/registry"
+	"syscall"
+)
+
+var (
+	shell32         = syscall.NewLazyDLL("shell32.dll")
+	isUserAnAdmin   = shell32.NewProc("IsUserAnAdmin")
 )
 
 // detectPlatform checks if running as administrator (Windows)
 func detectPlatform() Level {
-	// Try to open a registry key that requires admin rights
-	// HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Microsoft\Windows\CurrentVersion`,
-		registry.QUERY_VALUE)
-
-	if err == nil {
-		key.Close()
+	ret, _, _ := isUserAnAdmin.Call()
+	if ret != 0 {
 		return LevelAdmin
 	}
-
 	return LevelUser
 }
