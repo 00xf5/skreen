@@ -102,6 +102,7 @@ func SpawnHelperProcess(token syscall.Token, env []string) (*exec.Cmd, io.WriteC
 		CreationFlags: syscall.CREATE_UNICODE_ENVIRONMENT,
 	}
 	cmd.Env = env
+	cmd.Stderr = os.Stderr
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

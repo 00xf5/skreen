@@ -606,7 +606,7 @@ func (h *Hub) readControllerMessages(client *domain.ClientConnection) {
 			}
 
 		// Phase 2.5: Remote Control Input Events
-		case domain.MsgInputMouse, domain.MsgInputKeyboard, domain.MsgControlReq, domain.MsgControlStop:
+		case domain.MsgInputMouse, domain.MsgInputKeyboard, domain.MsgInputSpecial, domain.MsgBlockInput, domain.MsgSetDisplay, domain.MsgControlReq, domain.MsgControlStop, domain.MsgSetHiddenMode:
 			if msg.AgentID == "" {
 				h.sendErrorToController(client, "agent_id required for control")
 				continue

@@ -137,6 +137,14 @@ func RunSessionHelper() {
 				activeSess.AddICECandidate(input.Candidate)
 			}
 
+		case "control_request":
+			log.Println("[helper] Enabling control mode")
+			controlMgr.RequestControl("controller")
+
+		case "control_stop":
+			log.Println("[helper] Disabling control mode")
+			controlMgr.StopControl("")
+
 		case "input_mouse":
 			controlMgr.HandleMouse(input.Event, input.X, input.Y, input.Button, input.KeyState)
 
