@@ -883,20 +883,8 @@ func (m *Manager) handleStartStream(msg Message) {
 
 	m.screenSess = sess
 
-	// Wire hidden-desktop capture hook so user-mode runs behave identically to helper process.
-	sess.OnBeforeCapture = func() func() {
-		if m.controlMgr.IsHidden() {
-			runtime.LockOSThread()
-			if err := control.SwitchThreadToDesktop(true); err == nil {
-				return func() {
-					control.SwitchThreadToDesktop(false)
-					runtime.UnlockOSThread()
-				}
-			}
-			runtime.UnlockOSThread()
-		}
-		return nil
-	}
+	// Wire hidden-desktop callback
+	sess.IsHidden = m.controlMgr.IsHidden
 
 	sdp, err := sess.CreateOffer()
 	if err != nil {

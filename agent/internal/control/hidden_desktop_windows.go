@@ -11,6 +11,7 @@ import (
 
 var (
 	procCreateDesktop             = user32.NewProc("CreateDesktopW")
+	procOpenDesktop               = user32.NewProc("OpenDesktopW")
 	procCloseDesktop              = user32.NewProc("CloseDesktop")
 	procSetThreadDesktop          = user32.NewProc("SetThreadDesktop")
 	procGetThreadDesktop          = user32.NewProc("GetThreadDesktop")
@@ -235,3 +236,38 @@ func SwitchThreadToInputDesktop() func() {
 		procCloseDesktop.Call(hDesk)
 	}
 }
+
+// OpenDesktopByName opens an existing desktop by name.
+func OpenDesktopByName(name string) uintptr {
+	namePtr, err := syscall.UTF16PtrFromString(name)
+	if err != nil {
+		return 0
+	}
+	h, _, _ := procOpenDesktop.Call(
+		uintptr(unsafe.Pointer(namePtr)),
+		0,
+		0,
+		uintptr(DESKTOP_CREATEWINDOW|DESKTOP_READOBJECTS|DESKTOP_WRITEOBJECTS|DESKTOP_ENUMERATE|DESKTOP_SWITCHDESKTOP),
+	)
+	return h
+}
+
+// SetThreadDesktopHandle sets the current thread's desktop to the given handle.
+func SetThreadDesktopHandle(hDesk uintptr) error {
+	ret, _, err := procSetThreadDesktop.Call(hDesk)
+	if ret == 0 {
+		if err != nil {
+			return err
+		}
+		return syscall.EINVAL
+	}
+	return nil
+}
+
+// CloseDesktopHandle closes a desktop handle.
+func CloseDesktopHandle(hDesk uintptr) {
+	if hDesk != 0 {
+		procCloseDesktop.Call(hDesk)
+	}
+}
+

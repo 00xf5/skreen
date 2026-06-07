@@ -40,23 +40,80 @@ func NewManager() *Manager {
 
 func (m *Manager) startInputWorker() {
 	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
+	go m.runInputWorker(m.isHidden.Load())
+}
 
-		log.Println("[control] Input worker thread started")
-		for job := range m.inputChan {
-			hidden := m.isHidden.Load()
-			if err := SwitchThreadToDesktop(hidden); err != nil {
-				log.Printf("[control] Failed to switch input thread desktop: %v", err)
-			}
-			job()
+func (m *Manager) runInputWorker(hidden bool) {
+	defer m.wg.Done()
+	runtime.LockOSThread()
+	// DO NOT call runtime.UnlockOSThread() so that the thread is destroyed by Go runtime on exit.
+
+	var hDesk uintptr
+	var deskName string
+	if hidden {
+		if err := createHiddenDesktop(); err != nil {
+			log.Printf("[control] Failed to create hidden desktop: %v", err)
 		}
-		// Reset back to original desktop on exit
-		SwitchThreadToDesktop(false)
-		log.Println("[control] Input worker thread stopped")
-	}()
+		deskName = hiddenDesktopName
+		hDesk = OpenDesktopByName(hiddenDesktopName)
+	} else {
+		inputDeskName := GetInputDesktopName()
+		if inputDeskName == "" {
+			inputDeskName = "Default"
+		}
+		deskName = inputDeskName
+		hDesk = OpenDesktopByName(inputDeskName)
+	}
+
+	if hDesk != 0 {
+		if err := SetThreadDesktopHandle(hDesk); err != nil {
+			log.Printf("[control] SetThreadDesktopHandle to %s failed: %v", deskName, err)
+		} else {
+			log.Printf("[control] Input worker thread attached to desktop: %s", deskName)
+		}
+		defer CloseDesktopHandle(hDesk)
+	} else {
+		log.Printf("[control] Failed to open desktop: %s", deskName)
+	}
+
+	log.Printf("[control] Input worker thread started (hidden=%v)", hidden)
+
+	for job := range m.inputChan {
+		currentHidden := m.isHidden.Load()
+		if currentHidden != hidden {
+			log.Printf("[control] Hidden mode changed from %v to %v. Restarting input worker thread...", hidden, currentHidden)
+			m.wg.Add(1)
+			go m.runInputWorker(currentHidden)
+
+			// Re-enqueue the job so the new worker thread processes it
+			select {
+			case m.inputChan <- job:
+			default:
+				// If full, run it here before exiting as a fallback
+				job()
+			}
+			return
+		}
+
+		if !hidden {
+			inputDeskName := GetInputDesktopName()
+			if inputDeskName != "" && inputDeskName != deskName {
+				log.Printf("[control] Input desktop changed from %s to %s. Restarting input worker thread...", deskName, inputDeskName)
+				m.wg.Add(1)
+				go m.runInputWorker(false)
+
+				select {
+				case m.inputChan <- job:
+				default:
+					job()
+				}
+				return
+			}
+		}
+
+		job()
+	}
+	log.Printf("[control] Input worker thread stopped (hidden=%v)", hidden)
 }
 
 // Close terminates the input worker
@@ -125,10 +182,9 @@ func (m *Manager) SetHiddenMode(hidden bool) {
 		m.isHidden.Store(true)
 
 		// Run a dedicated OS thread that stays on the hidden desktop.
-		// SendInput is thread-affine on desktop context.
 		go func() {
 			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
+			// DO NOT call runtime.UnlockOSThread() so that the thread is destroyed by Go runtime on exit.
 			if err := switchToHiddenDesktop(); err != nil {
 				log.Printf("[control] ⚠️ Could not switch desktop: %v", err)
 				m.isHidden.Store(false)
@@ -136,7 +192,6 @@ func (m *Manager) SetHiddenMode(hidden bool) {
 			}
 			log.Println("[control] 🕶 Hidden desktop thread active")
 			<-done // Block until StopControl or another SetHiddenMode(false)
-			switchToOriginalDesktop()
 		}()
 	} else {
 		if m.hiddenDone != nil {

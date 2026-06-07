@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"runtime"
 	"scon/agent/internal/control"
 	"scon/agent/internal/screenshare"
 
@@ -101,19 +100,7 @@ func RunSessionHelper() {
 			}
 
 			// Capture loop switches to the hidden desktop context if set
-			sess.OnBeforeCapture = func() func() {
-				if controlMgr.IsHidden() {
-					runtime.LockOSThread()
-					if err := control.SwitchThreadToDesktop(true); err == nil {
-						return func() {
-							control.SwitchThreadToDesktop(false)
-							runtime.UnlockOSThread()
-						}
-					}
-					runtime.UnlockOSThread()
-				}
-				return nil
-			}
+			sess.IsHidden = controlMgr.IsHidden
 
 			activeSess = sess
 

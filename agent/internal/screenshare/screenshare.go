@@ -17,6 +17,7 @@ import (
 	"image"
 	"image/jpeg"
 	"log"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,9 +58,9 @@ type Session struct {
 	lastChecksum uint32
 
 	// Callbacks
-	OnICECandidate  func(candidateJSON string)
-	OnStateChange   func(state webrtc.ICEConnectionState)
-	OnBeforeCapture func() func()
+	OnICECandidate func(candidateJSON string)
+	OnStateChange  func(state webrtc.ICEConnectionState)
+	IsHidden       func() bool
 }
 
 // NewSession creates a new PeerConnection and video track.
@@ -190,7 +191,11 @@ func (s *Session) AddICECandidate(candidateJSON string) error {
 // StartCapture begins the screen capture → encode → RTP loop.
 // Call this after SetAnswer so the connection is established.
 func (s *Session) StartCapture() {
-	go s.captureLoop()
+	var initialHidden bool
+	if s.IsHidden != nil {
+		initialHidden = s.IsHidden()
+	}
+	go s.runCaptureLoop(initialHidden, "")
 }
 
 // Stop gracefully tears down the session.
@@ -245,9 +250,39 @@ func NumDisplays() int {
 	return screenshot.NumActiveDisplays()
 }
 
-// captureLoop is the heart of Phase 2.
-func (s *Session) captureLoop() {
-	log.Printf("[screenshare] capture loop started")
+// runCaptureLoop is the heart of Phase 2.
+func (s *Session) runCaptureLoop(hidden bool, activeDesktop string) {
+	runtime.LockOSThread()
+	// DO NOT call runtime.UnlockOSThread() so that the thread is destroyed by Go runtime on exit.
+
+	var hDesk uintptr
+	var deskName string
+	if hidden {
+		deskName = "SkreenHiddenDesktop"
+		hDesk = control.OpenDesktopByName(deskName)
+	} else {
+		if activeDesktop == "" {
+			activeDesktop = control.GetInputDesktopName()
+			if activeDesktop == "" {
+				activeDesktop = "Default"
+			}
+		}
+		deskName = activeDesktop
+		hDesk = control.OpenDesktopByName(deskName)
+	}
+
+	if hDesk != 0 {
+		if err := control.SetThreadDesktopHandle(hDesk); err != nil {
+			log.Printf("[screenshare] SetThreadDesktopHandle to %s failed: %v", deskName, err)
+		} else {
+			log.Printf("[screenshare] Capture thread attached to desktop: %s", deskName)
+		}
+		defer control.CloseDesktopHandle(hDesk)
+	} else {
+		log.Printf("[screenshare] Failed to open desktop: %s", deskName)
+	}
+
+	log.Printf("[screenshare] Capture loop started (hidden=%v, desktop=%s)", hidden, deskName)
 
 	n := screenshot.NumActiveDisplays()
 	if n < 1 {
@@ -260,8 +295,29 @@ func (s *Session) captureLoop() {
 	for {
 		select {
 		case <-s.stopCh:
+			log.Printf("[screenshare] Capture loop exiting because stopCh closed")
 			return
 		default:
+		}
+
+		// Check if desktop context has changed
+		var currentHidden bool
+		if s.IsHidden != nil {
+			currentHidden = s.IsHidden()
+		}
+		if currentHidden != hidden {
+			log.Printf("[screenshare] Hidden mode changed from %v to %v. Restarting capture loop thread...", hidden, currentHidden)
+			go s.runCaptureLoop(currentHidden, "")
+			return
+		}
+
+		if !hidden {
+			inputDesk := control.GetInputDesktopName()
+			if inputDesk != "" && inputDesk != deskName {
+				log.Printf("[screenshare] Input desktop changed from %s to %s. Restarting capture loop thread...", deskName, inputDesk)
+				go s.runCaptureLoop(false, inputDesk)
+				return
+			}
 		}
 
 		// Read quality settings atomically
@@ -288,22 +344,8 @@ func (s *Session) captureLoop() {
 		}
 		bounds := screenshot.GetDisplayBounds(idx)
 
-		// Capture screen (with custom thread-switching hook if set)
-		var cleanup func()
-		if s.OnBeforeCapture != nil {
-			cleanup = s.OnBeforeCapture()
-		} else {
-			// No custom hook: dynamically follow the input desktop so UAC/lock
-			// screens don't freeze the stream.
-			cleanup = control.SwitchThreadToInputDesktop()
-		}
-
+		// Capture screen
 		img, err := screenshot.CaptureRect(bounds)
-
-		if cleanup != nil {
-			cleanup()
-		}
-
 		if err != nil {
 			log.Printf("[screenshare] capture error: %v", err)
 			time.Sleep(500 * time.Millisecond)
@@ -311,8 +353,6 @@ func (s *Session) captureLoop() {
 		}
 
 		// ── Frame deduplication ──────────────────────────────────────────────────────
-		// CRC32 of raw pixels is extremely fast (~2ms for 1080p) and eliminates
-		// useless retransmissions during idle screens, saving CPU + bandwidth.
 		checksum := crc32.ChecksumIEEE(img.Pix)
 		if checksum == s.lastChecksum {
 			continue // Screen unchanged — skip encode + send entirely

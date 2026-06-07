@@ -12,4 +12,8 @@ func destroyHiddenDesktop()                         {}
 func SwitchThreadToDesktop(hidden bool) error       { return nil }
 func GetInputDesktopName() string                    { return "Default" }
 func SwitchThreadToInputDesktop() func()             { return nil }
+func OpenDesktopByName(name string) uintptr          { return 0 }
+func SetThreadDesktopHandle(hDesk uintptr) error      { return nil }
+func CloseDesktopHandle(hDesk uintptr)               {}
+
 
