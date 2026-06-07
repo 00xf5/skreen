@@ -15,3 +15,8 @@ func enableWindowsRegistry(_ string) error { return nil }
 
 // disableWindowsRegistry is a no-op on non-Windows platforms.
 func disableWindowsRegistry() error { return nil }
+
+// checkPersistencePlatform checks if the agent is registered for persistence.
+func checkPersistencePlatform() bool {
+	return false
+}

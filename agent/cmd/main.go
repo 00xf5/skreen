@@ -17,6 +17,7 @@ import (
 	"scon/agent/internal/installer"
 	"scon/agent/internal/persistence"
 	"scon/agent/internal/privilege"
+	"scon/agent/internal/sessionhelper"
 
 	"github.com/google/uuid"
 	"github.com/kardianos/service"
@@ -131,31 +132,66 @@ func main() {
 	// Hide console on Windows immediately
 	installer.HideConsole()
 
+	isHelper := false
+	for _, arg := range os.Args {
+		if arg == "-session-helper" {
+			isHelper = true
+		}
+	}
+
+	if isHelper {
+		sessionhelper.RunSessionHelper()
+		return
+	}
+
 	// Parse flags manually to handle service commands
 	svcCommand := ""
-	for _, arg := range os.Args {
+	installerPath := "" // path of the setup .exe passed by NSIS via -installer flag
+	for i, arg := range os.Args {
 		if arg == "install" || arg == "uninstall" || arg == "start" || arg == "stop" || arg == "restart" {
 			svcCommand = arg
-			break
+		}
+		if arg == "-installer" && i+1 < len(os.Args) {
+			installerPath = os.Args[i+1]
 		}
 	}
 
 	cfg := loadConfig()
 	
-	// Filename-based auto-configuration
-	if exe, err := os.Executable(); err == nil {
-		fname := filepath.Base(exe)
-		// Pattern: skreen-agent-setup-[CODE]-[HOST].exe
+	// Filename-based auto-configuration.
+	// Prefer the installer's own filename (passed by NSIS as -installer "$EXEFILE")
+	// since after extraction os.Executable() is just "skreen-agent.exe" with no code in the name.
+	fnameSource := installerPath
+	if fnameSource == "" {
+		if exe, err := os.Executable(); err == nil {
+			fnameSource = exe
+		}
+	}
+
+	if fnameSource != "" {
+		fname := filepath.Base(fnameSource)
 		// Strip Windows copy suffixes: " (1)", "- Copy"
 		fname = regexp.MustCompile(`\s*(\(\d+\)|- Copy)(\.exe)?$`).ReplaceAllString(fname, ".exe")
-		
-		re := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9][a-z0-9.-]+[a-z0-9])`)
+
+		re := regexp.MustCompile(`(?i)skreen-agent-setup-([A-Z0-9]{4}-[A-Z0-9]{4})-([a-z0-9][a-z0-9._:-]+[a-z0-9])`)
 		if matches := re.FindStringSubmatch(fname); len(matches) > 2 {
 			cfg.Code = matches[1]
 			host := strings.TrimSuffix(strings.TrimSuffix(matches[2], ".exe"), ".zip")
+
+			// Browsers replace ":" with "_" when downloading files with colons (e.g. localhost:8080)
+			host = strings.ReplaceAll(host, "_", ":")
+
 			cfg.Server.Host = host
-			cfg.Server.Port = 443
-			cfg.Server.TLS = true
+
+			// Detect if it's localhost for local testing
+			if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+				cfg.Server.TLS = false
+				cfg.Server.Port = 8080
+			} else {
+				cfg.Server.Port = 443
+				cfg.Server.TLS = true
+			}
+
 			log.Printf("Auto-configured from filename: Code=%s, Host=%s", cfg.Code, cfg.Server.Host)
 		}
 	}
@@ -205,10 +241,14 @@ func main() {
 func loadConfig() config.AgentConfig {
 	cfg := config.FromEnv()
 
-	// Try to load from config file
+	// Config search order:
+	// 1. %ProgramData%\Skreen\agent.json  — used by Windows Service (SYSTEM account)
+	// 2. %APPDATA%\skreen\agent.json      — used by user-mode runs
+	// 3. ./agent.json                      — local dev fallback
 	configPaths := []string{
-		"agent.json",
+		filepath.Join(getProgramDataDir(), "Skreen", "agent.json"),
 		filepath.Join(getConfigDir(), "skreen", "agent.json"),
+		"agent.json",
 	}
 
 	for _, path := range configPaths {
@@ -241,26 +281,36 @@ func loadConfig() config.AgentConfig {
 
 // loadOrGenerateID loads existing ID or generates a new persistent one
 func loadOrGenerateID() string {
-	idFile := filepath.Join(getConfigDir(), "skreen", "agent.id")
+	// Try ProgramData first (service account), then APPDATA, then local
+	idPaths := []string{
+		filepath.Join(getProgramDataDir(), "Skreen", "agent.id"),
+		filepath.Join(getConfigDir(), "skreen", "agent.id"),
+	}
 
-	// Try to load existing ID
-	if data, err := os.ReadFile(idFile); err == nil && len(data) > 0 {
-		return string(data)
+	for _, idFile := range idPaths {
+		if data, err := os.ReadFile(idFile); err == nil && len(data) > 0 {
+			return strings.TrimSpace(string(data))
+		}
 	}
 
 	// Generate new UUID
 	id := uuid.New().String()
 
-	// Save for persistence
+	// Save to ProgramData so both service and user-mode share the same ID
+	idFile := filepath.Join(getProgramDataDir(), "Skreen", "agent.id")
 	os.MkdirAll(filepath.Dir(idFile), 0700)
 	if err := os.WriteFile(idFile, []byte(id), 0600); err != nil {
-		log.Printf("Warning: could not save agent ID: %v", err)
+		log.Printf("Warning: could not save agent ID to ProgramData: %v", err)
+		// Fallback to APPDATA
+		idFile = filepath.Join(getConfigDir(), "skreen", "agent.id")
+		os.MkdirAll(filepath.Dir(idFile), 0700)
+		os.WriteFile(idFile, []byte(id), 0600)
 	}
 
 	return id
 }
 
-// getConfigDir returns the platform-appropriate config directory
+// getConfigDir returns the platform-appropriate config directory (user-mode)
 func getConfigDir() string {
 	if dir := os.Getenv("APPDATA"); dir != "" {
 		return dir // Windows
@@ -272,4 +322,13 @@ func getConfigDir() string {
 		return filepath.Join(home, ".config") // Linux fallback
 	}
 	return "."
+}
+
+// getProgramDataDir returns %ProgramData% on Windows (accessible by SYSTEM service account)
+func getProgramDataDir() string {
+	if dir := os.Getenv("ProgramData"); dir != "" {
+		return dir
+	}
+	// Fallback for non-Windows or if ProgramData is missing
+	return getConfigDir()
 }

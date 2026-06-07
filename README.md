@@ -102,6 +102,9 @@ Use the provided PowerShell script to build the entire stack:
    - `CONTROLLER_URL`: Your Vercel dashboard URL.
    - `SCON_SECRET`: A secure random string for management auth.
 
+> [!TIP]
+> **TODO - Agent Persistence on Render**: Render uses an ephemeral filesystem, meaning `agents.json` is wiped on every restart. To prevent losing persistent agents, before stopping or deploying the server, copy the `AGENTS_SEED` snapshot from the Render logs and set it as the `AGENTS_SEED` environment variable!
+
 > [!IMPORTANT]
 > Because Render (Linux) cannot compile Windows binaries easily, you MUST run `.\build.ps1` locally and **commit `server/skreen-agent-setup.exe`** to GitHub so Render can serve it.
 

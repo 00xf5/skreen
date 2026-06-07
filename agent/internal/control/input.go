@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+type inputJob func()
+
 // Manager handles remote input execution and permission locking.
 type Manager struct {
 	mu           sync.Mutex
@@ -21,10 +23,46 @@ type Manager struct {
 
 	// hiddenDone signals the hidden-desktop goroutine to exit
 	hiddenDone chan struct{}
+
+	// Input worker queue
+	inputChan chan inputJob
+	wg        sync.WaitGroup
 }
 
+// NewManager creates a new input manager
 func NewManager() *Manager {
-	return &Manager{}
+	m := &Manager{
+		inputChan: make(chan inputJob, 256),
+	}
+	m.startInputWorker()
+	return m
+}
+
+func (m *Manager) startInputWorker() {
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		log.Println("[control] Input worker thread started")
+		for job := range m.inputChan {
+			hidden := m.isHidden.Load()
+			if err := SwitchThreadToDesktop(hidden); err != nil {
+				log.Printf("[control] Failed to switch input thread desktop: %v", err)
+			}
+			job()
+		}
+		// Reset back to original desktop on exit
+		SwitchThreadToDesktop(false)
+		log.Println("[control] Input worker thread stopped")
+	}()
+}
+
+// Close terminates the input worker
+func (m *Manager) Close() {
+	close(m.inputChan)
+	m.wg.Wait()
 }
 
 func (m *Manager) RequestControl(controllerID string) bool {
@@ -116,13 +154,21 @@ func (m *Manager) IsActive(controllerID string) bool {
 	return m.active.Load() && m.controllerID == controllerID
 }
 
+func (m *Manager) queueInput(job inputJob) {
+	select {
+	case m.inputChan <- job:
+	default:
+		// Queue full (e.g. lagging behind), drop event to avoid buffer bloat
+	}
+}
+
 func (m *Manager) HandleMouse(event string, x, y float64, button, state string) {
 	if !m.active.Load() {
 		return
 	}
 
-	switch event {
-	case "move":
+	// Rate limit mouse moves to avoid overwhelming the input worker
+	if event == "move" {
 		m.mu.Lock()
 		now := time.Now()
 		if now.Sub(m.lastMove) < 20*time.Millisecond {
@@ -131,29 +177,33 @@ func (m *Manager) HandleMouse(event string, x, y float64, button, state string) 
 		}
 		m.lastMove = now
 		m.mu.Unlock()
-
-		width, height := getScreenSize()
-		realX := int(x * float64(width))
-		realY := int(y * float64(height))
-
-		currentX, currentY := getMousePos()
-		go smoothMove(currentX, currentY, realX, realY)
-
-	case "click":
-		log.Printf("[control] click %s %s", button, state)
-		mouseToggle(button, state)
-
-	case "scroll":
-		// y holds the scroll delta: positive = up, negative = down
-		delta := int(y)
-		if delta != 0 {
-			mouseScroll(delta)
-		}
 	}
+
+	m.queueInput(func() {
+		switch event {
+		case "move":
+			width, height := getScreenSize()
+			realX := int(x * float64(width))
+			realY := int(y * float64(height))
+
+			currentX, currentY := getMousePos()
+			smoothMove(currentX, currentY, realX, realY)
+
+		case "click":
+			log.Printf("[control] click %s %s", button, state)
+			mouseToggle(button, state)
+
+		case "scroll":
+			delta := int(y)
+			if delta != 0 {
+				mouseScroll(delta)
+			}
+		}
+	})
 }
 
 func smoothMove(fromX, fromY, toX, toY int) {
-	steps := 3 
+	steps := 3
 	for i := 1; i <= steps; i++ {
 		x := fromX + (toX-fromX)*i/steps
 		y := fromY + (toY-fromY)*i/steps
@@ -166,8 +216,10 @@ func (m *Manager) HandleKeyboard(key, state string) {
 	if !m.active.Load() {
 		return
 	}
-	log.Printf("[control] key %s %s", key, state)
-	keybdToggle(mapKey(key), state)
+	m.queueInput(func() {
+		log.Printf("[control] key %s %s", key, state)
+		keybdToggle(mapKey(key), state)
+	})
 }
 
 func mapKey(key string) string {
@@ -195,19 +247,23 @@ func (m *Manager) HandleSpecialKey(key string) {
 	if !m.active.Load() {
 		return
 	}
-	log.Printf("[control] special key %s", key)
-	switch strings.ToLower(key) {
-	case "cad":
-		sendCAD()
-	case "win":
-		sendWinKey()
-	}
+	m.queueInput(func() {
+		log.Printf("[control] special key %s", key)
+		switch strings.ToLower(key) {
+		case "cad":
+			sendCAD()
+		case "win":
+			sendWinKey()
+		}
+	})
 }
 
 func (m *Manager) SetBlockInput(block bool) {
 	if !m.active.Load() {
 		return
 	}
-	log.Printf("[control] block input: %v", block)
-	setBlockInput(block)
+	m.queueInput(func() {
+		log.Printf("[control] block input: %v", block)
+		setBlockInput(block)
+	})
 }

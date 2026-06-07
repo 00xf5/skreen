@@ -14,8 +14,8 @@
 #>
 
 param(
-    [string]$ServerHost = "localhost",
-    [string]$ServerPort = "8080"
+    [string]$ServerHost = "skreen.onrender.com",
+    [string]$ServerPort = "443"
 )
 
 $ErrorActionPreference = "Stop"

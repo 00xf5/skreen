@@ -72,6 +72,9 @@ Section "Skreen Agent" SecMain
     SetOutPath "$INSTDIR"
     SetOverwrite on
 
+    DetailPrint "Stopping existing agent if running..."
+    ExecWait 'taskkill /f /im "${APP_EXE}"'
+
     DetailPrint "Copying Skreen Agent..."
     File "..\agent\skreen-agent.exe"
 
@@ -102,16 +105,14 @@ Section "Skreen Agent" SecMain
     CreateShortcut "$SMPROGRAMS\Skreen\Uninstall Skreen Agent.lnk" \
         "$INSTDIR\uninstall.exe"
 
-    ; ── Persistence: Scheduled Task (survives reboots) ───────────────────────
-    DetailPrint "Registering system service..."
-    ; Remove old task silently if it exists
-    ExecWait 'schtasks /delete /tn "${TASK_NAME}" /f'
-    ; Create task: runs at logon for any user, highest privilege
-    ExecWait 'schtasks /create /tn "${TASK_NAME}" /tr "$\"$INSTDIR\${APP_EXE}$\" -installer $\"$EXEFILE$\"" /sc onlogon /ru "" /rl HIGHEST /f'
-
-    ; ── Start Agent Now ───────────────────────────────────────────────────────
-    DetailPrint "Starting Skreen Agent..."
-    Exec '"$INSTDIR\${APP_EXE}" -installer "$EXEFILE"'
+    ; ── Persistence: Windows Service (survives reboots, no login needed) ─────
+    DetailPrint "Installing Windows Service..."
+    ; Stop and remove old service silently if it exists
+    ExecWait 'sc stop SkreenAgent'
+    ExecWait '"$INSTDIR\${APP_EXE}" uninstall'
+    ; Install as Windows Service
+    ExecWait '"$INSTDIR\${APP_EXE}" install'
+    ExecWait 'sc start SkreenAgent'
 
     DetailPrint "Installation complete."
 SectionEnd
@@ -120,12 +121,15 @@ SectionEnd
 ; UNINSTALL SECTION
 ; ══════════════════════════════════════════════════════════════════════════════
 Section "Uninstall"
-    ; Stop running agent
+    DetailPrint "Stopping Skreen Agent service..."
+    ; Stop the service gracefully first (triggers DumpSeed on server side too)
+    ExecWait 'sc stop SkreenAgent'
+    ; Wait a moment for clean shutdown
+    Sleep 2000
+    ; Uninstall the Windows Service
+    ExecWait '"$INSTDIR\${APP_EXE}" uninstall'
+    ; Kill any leftover process
     ExecWait 'taskkill /f /im "${APP_EXE}"'
-
-    ; Remove scheduled task
-    ExecWait 'schtasks /end /tn "${TASK_NAME}"'
-    ExecWait 'schtasks /delete /tn "${TASK_NAME}" /f'
 
     ; Remove files
     Delete "$INSTDIR\${APP_EXE}"

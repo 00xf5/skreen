@@ -1,0 +1,105 @@
+**Implementing a genuine hidden desktop (Backstage-style) is advanced, low-level Windows programming.** It requires careful handling of sessions, desktops, tokens, and privileges. The description you shared earlier is **very accurate** to how mature tools like **ScreenConnect/ConnectWise Control** do it.
+
+### Core Architecture (Based on Public Knowledge + ScreenConnect Patent)
+ScreenConnect’s **Backstage** (patented as “Hidden Desktop Session for Remote Access”) works roughly like this:
+
+1. **Service runs in Session 0** (non-interactive, SYSTEM context).
+2. On Backstage request → **Hijack / clone into the user’s session**.
+3. **Create a new isolated desktop** inside the user’s session.
+4. **Spawn processes** (PowerShell, CMD, explorer.exe components, etc.) explicitly into that hidden desktop.
+5. **Route inputs & capture** via thread desktop switching (`SetThreadDesktop`).
+6. Stream the hidden desktop’s UI (or just console/GUI tools) back to the technician’s web dashboard.
+
+The patent emphasizes “hijacking the system session” and transitioning it to interactive state (sometimes via registry tweaks), then generating a hidden desktop within it. It supports full GUI apps, taskbar, etc., in the hidden environment.
+
+### Step-by-Step Implementation Guide (C/C++ or C# with P/Invoke)
+
+**Prerequisites / Privileges:**
+- Run as Windows Service (SYSTEM).
+- `SeTcbPrivilege` (Trusted Computing Base) enabled for token operations.
+- Admin rights on the target machine.
+
+#### 1. Detect Active User Session & Duplicate Token
+```cpp
+// Get active console session
+DWORD sessionId = WTSGetActiveConsoleSessionId();
+
+// Get user token
+HANDLE hToken = NULL;
+WTSQueryUserToken(sessionId, &hToken);
+
+// Duplicate to primary token if needed
+DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityImpersonation, TokenPrimary, &hPrimaryToken);
+```
+
+#### 2. Create the Hidden Desktop
+```cpp
+HDESK hHiddenDesktop = CreateDesktopW(
+    L"SkreenHiddenDesktop",  // or any name
+    NULL, NULL, 0,
+    GENERIC_ALL,
+    NULL
+);
+```
+
+#### 3. Spawn Process into Hidden Desktop (Key Step)
+Use `CreateProcessAsUser` with custom `STARTUPINFO`:
+
+```cpp
+STARTUPINFOW si = { sizeof(si) };
+si.lpDesktop = L"WinSta0\\SkreenHiddenDesktop";  // Important: WindowStation\Desktop
+
+PROCESS_INFORMATION pi;
+
+CreateProcessAsUserW(
+    hPrimaryToken,
+    L"C:\\Windows\\System32\\cmd.exe",  // or powershell.exe
+    NULL,
+    NULL, NULL, FALSE, CREATE_NEW_CONSOLE,
+    NULL, NULL, &si, &pi
+);
+```
+
+You can also launch `explorer.exe` (with custom shell) or specific tools (regedit, eventvwr, etc.).
+
+#### 4. Thread Desktop Switching for Input & Capture
+For your agent’s screenshot/input loop:
+
+```cpp
+// In a dedicated thread (LockOSThread in Go, or similar)
+HDESK hOld = GetThreadDesktop(GetCurrentThreadId());
+SetThreadDesktop(hHiddenDesktop);
+
+// Do screenshot (BitBlt / DXGI), SendInput, etc. on hidden desktop
+// ...
+
+SetThreadDesktop(hOld);  // Restore
+```
+
+#### 5. Session 0 → User Session Helper (Unattended)
+- Service (Session 0) spawns a **helper process** in the user’s session using the duplicated token.
+- Helper does the desktop creation + process spawning.
+- Communicate via named pipes, shared memory, or sockets.
+
+#### 6. Additional Polish (What ScreenConnect Does)
+- Launch a minimal/custom shell or taskbar in the hidden desktop for easy access to tools.
+- Support switching between visible session and Backstage.
+- Proper cleanup: CloseDesktop, terminate processes, revert session state.
+- Handle multi-monitor, DPI, UAC, etc.
+- Security: Strict ACLs on the desktop, audit logging.
+
+### Important Gotchas & Challenges
+- **Session Isolation** — Modern Windows (Vista+) heavily isolates Session 0.
+- **Stability** — `SetThreadDesktop` is delicate; crashes if not handled per-thread.
+- **GUI Apps** — Not all apps play nice in non-default desktops (especially those using advanced graphics).
+- **Anti-Malware** — This behavior looks suspicious; you’ll need signing + whitelisting.
+- **Patents** — ScreenConnect has patents; commercial use may have legal risk.
+
+### Open-Source References to Study
+- **MalwareTech/CreateDesktop** — Simple example of creating/switching desktops.
+- Various **HVNC** (Hidden VNC) projects on GitHub — Implement similar techniques (for research/educational purposes only).
+- Microsoft Docs: `CreateDesktop`, `SetThreadDesktop`, `WTSQueryUserToken`, `CreateProcessAsUser`.
+
+**Would you like me to provide a more complete code skeleton (e.g., in C# with P/Invoke) or focus on a specific part (token handling, screenshot in hidden desktop, etc.)?**
+
+This is production-grade systems programming — test thoroughly in VMs. Let me know your language/stack for more targeted help.

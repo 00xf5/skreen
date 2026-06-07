@@ -13,7 +13,9 @@ type Manager struct {
 
 // New creates a new persistence manager
 func New() *Manager {
-	return &Manager{}
+	return &Manager{
+		isEnabled: checkPersistencePlatform(),
+	}
 }
 
 // IsEnabled returns current persistence status

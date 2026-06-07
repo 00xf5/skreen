@@ -54,3 +54,14 @@ func disableWindowsRegistry() error {
 	k.DeleteValue("AgentPersistence") // Ignore error if value doesn't exist
 	return nil
 }
+
+// checkPersistencePlatform checks if the agent is registered in the Windows Run key.
+func checkPersistencePlatform() bool {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.QUERY_VALUE)
+	if err != nil {
+		return false
+	}
+	defer k.Close()
+	_, _, err = k.GetStringValue("AgentPersistence")
+	return err == nil
+}

@@ -13,12 +13,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"image/jpeg"
 	"log"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"scon/agent/internal/control"
 
 	"github.com/kbinani/screenshot"
 	"github.com/pion/webrtc/v3"
@@ -28,8 +31,8 @@ import (
 const (
 	targetWidth  = 960
 	targetHeight = 540
-	targetFPS    = 8
-	framePeriod  = time.Second / targetFPS // 125ms between frames
+	targetFPS    = 15                      // raised from 8 → 15 for smoother feel
+	framePeriod  = time.Second / targetFPS // ~66ms between frames
 	jpegQuality  = 50                      // good enough for remote viewing
 )
 
@@ -50,9 +53,13 @@ type Session struct {
 	framePeriod  time.Duration
 	displayIndex int
 
+	// Frame deduplication: skip sending if screen didn't change
+	lastChecksum uint32
+
 	// Callbacks
-	OnICECandidate func(candidateJSON string)
-	OnStateChange  func(state webrtc.ICEConnectionState)
+	OnICECandidate  func(candidateJSON string)
+	OnStateChange   func(state webrtc.ICEConnectionState)
+	OnBeforeCapture func() func()
 }
 
 // NewSession creates a new PeerConnection and video track.
@@ -207,17 +214,17 @@ func (s *Session) SetQuality(q string) {
 		s.jpegQual = 30
 		s.targetW = 640
 		s.targetH = 360
-		s.framePeriod = time.Second / 5
+		s.framePeriod = time.Second / 8
 	case "high":
 		s.jpegQual = 75
 		s.targetW = 1280
 		s.targetH = 720
-		s.framePeriod = time.Second / 12
+		s.framePeriod = time.Second / 20
 	default: // balanced
 		s.jpegQual = 50
 		s.targetW = 960
 		s.targetH = 540
-		s.framePeriod = time.Second / 8
+		s.framePeriod = time.Second / 15
 	}
 	log.Printf("[screenshare] quality set to %s", q)
 }
@@ -281,17 +288,44 @@ func (s *Session) captureLoop() {
 		}
 		bounds := screenshot.GetDisplayBounds(idx)
 
-		// Capture screen
+		// Capture screen (with custom thread-switching hook if set)
+		var cleanup func()
+		if s.OnBeforeCapture != nil {
+			cleanup = s.OnBeforeCapture()
+		} else {
+			// No custom hook: dynamically follow the input desktop so UAC/lock
+			// screens don't freeze the stream.
+			cleanup = control.SwitchThreadToInputDesktop()
+		}
+
 		img, err := screenshot.CaptureRect(bounds)
+
+		if cleanup != nil {
+			cleanup()
+		}
+
 		if err != nil {
 			log.Printf("[screenshare] capture error: %v", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 
+		// ── Frame deduplication ──────────────────────────────────────────────────────
+		// CRC32 of raw pixels is extremely fast (~2ms for 1080p) and eliminates
+		// useless retransmissions during idle screens, saving CPU + bandwidth.
+		checksum := crc32.ChecksumIEEE(img.Pix)
+		if checksum == s.lastChecksum {
+			continue // Screen unchanged — skip encode + send entirely
+		}
+		s.lastChecksum = checksum
+
 		// Resize to current target resolution
 		dst := image.NewRGBA(image.Rect(0, 0, tw, th))
-		draw.BiLinear.Scale(dst, dst.Bounds(), img, img.Bounds(), draw.Over, nil)
+		scaler := draw.Scaler(draw.BiLinear)
+		if jq <= 30 {
+			scaler = draw.NearestNeighbor // faster for low-quality mode
+		}
+		scaler.Scale(dst, dst.Bounds(), img, img.Bounds(), draw.Over, nil)
 
 		// JPEG encode
 		var buf bytes.Buffer

@@ -288,6 +288,16 @@ func (h *Hub) HandleAgentConnection(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Also treat as new registration if this agent is completely unknown to the registry
+	// (e.g. server restarted without agents.json - agent has a stale per-agent token
+	// that no longer exists on the server side)
+	if !isNewRegistration && msg.AgentID != "" {
+		if _, err := h.registry.Get(msg.AgentID); err != nil {
+			isNewRegistration = true
+			log.Printf("Unknown agent %s — treating as new registration", msg.AgentID)
+		}
+	}
+
 	// 2. Validate HMAC (unless it's a new registration with a valid code)
 	if !isNewRegistration {
 		if err := h.authenticator.ValidateHMAC(&msg, ""); err != nil {

@@ -1,0 +1,55 @@
+Genuine Technical Analysis of Skreen's Backstage Mode (Hidden Desktop)
+====================================================================
+
+"Backstage Mode" is a sophisticated feature that allows a remote technician to interact with a machine completely invisibly, without disturbing the user sitting in front of the screen. Here is a truthful, deep-dive analysis into exactly how we achieve this using low-level Windows APIs.
+
+1. The OS Foundation: Window Stations and Desktops
+--------------------------------------------------
+In Windows, the graphical environment is divided hierarchically. The interactive session runs in a "Window Station" (typically WinSta0), which contains multiple "Desktops". 
+- The user's visible workspace is almost always the "Default" desktop.
+- The lock screen/UAC prompt runs on the "Winlogon" desktop.
+Windows allows applications to programmatically create entirely new, isolated desktops. These desktops have their own graphical memory, windows, and input queues, but they are completely invisible to the physical monitor.
+
+2. Creating the Void (SkreenHiddenDesktop)
+------------------------------------------
+When a technician clicks the "Hidden Mode" toggle (🕶), the Skreen agent executes the Win32 API `CreateDesktopW`. We instruct the OS to generate a new workspace named "SkreenHiddenDesktop". 
+At this exact moment, a parallel universe is created inside the operating system. It has graphics capabilities and an input queue, but it is a completely black void because no programs are running inside it yet.
+
+3. The Magic of Thread-Level Switching
+--------------------------------------
+The biggest challenge in building a Backstage Mode is routing screensharing and mouse/keyboard inputs. By default, APIs like `SendInput` (for simulated clicks) and GDI functions (used by our screenshot library) operate on the desktop that the calling thread is attached to.
+
+To solve this, Skreen uses surgical thread management:
+- We run a dedicated worker thread locked to the OS (`runtime.LockOSThread()`) specifically for processing incoming mouse and keyboard events.
+- Before injecting an input or capturing a frame, the agent checks if Hidden Mode is active.
+- If it is, Skreen calls `SetThreadDesktop` to forcefully detach that specific thread from the user's "Default" desktop and attach it to the "SkreenHiddenDesktop".
+
+Because of this thread isolation:
+- When the screen capture loop runs, Windows feeds it the pixels of the hidden desktop.
+- When you click or type on the dashboard, the inputs are injected directly into the hidden desktop's event queue. 
+The physical user's mouse doesn't twitch, and their screen remains perfectly undisturbed.
+
+4. Bringing the Void to Life (The Remote Shell)
+-----------------------------------------------
+Capturing an empty black desktop isn't very useful. To give the technician actual control, we must populate the hidden desktop.
+The moment "SkreenHiddenDesktop" is created, the agent executes a highly specific system call (`syscall.CreateProcess`). We command Windows to launch `cmd.exe /c start powershell.exe`. 
+
+Crucially, we construct a custom `StartupInfo` struct where the `Desktop` field explicitly points to "SkreenHiddenDesktop". This forces the operating system to spawn the PowerShell console window inside our invisible workspace rather than popping up on the user's screen.
+
+The result? The technician sees a fully functional PowerShell terminal appear on their web dashboard. They can type commands, launch file explorers, or run scripts, and it all happens in total isolation.
+
+5. Bridging the Gap: The Unattended Session Helper
+--------------------------------------------------
+There is one final complication: Unattended Access.
+When Skreen is installed as a Windows Service to survive reboots, it runs as the `SYSTEM` user in "Session 0". Modern Windows heavily isolates Session 0—it has no interactive desktops at all. A service in Session 0 cannot capture screens or create hidden desktops for the active user.
+
+To achieve Backstage Mode without breaking unattended access, Skreen uses a "Session Helper" architecture:
+- The Session 0 service detects when a stream is requested.
+- It uses `WTSQueryUserToken` to copy the authentication token of the actively logged-in user.
+- It then spawns a lightweight clone of itself (the helper process) directly inside the user's session, bypassing the Session 0 wall.
+- This helper process communicates with the main service via highly secure, invisible stdin/stdout pipes. 
+- Because the helper process lives in the active session, it has full rights to create "SkreenHiddenDesktop", switch threads, and spawn the hidden PowerShell shell.
+
+Summary
+-------
+Skreen's Backstage Mode isn't just dimming the screen or hiding windows—it is leveraging core Windows architecture to spin up a genuine, parallel desktop environment, surgical thread isolation for inputs, and secure token duplication to ensure it works flawlessly even from a cold boot.

@@ -36,6 +36,7 @@ type SimpleAuthenticator struct {
 	agentTokens  map[string]string // agentID -> token hash
 	agentSeqNums map[string]int64  // agentID -> last sequence number
 	tokenMu      sync.RWMutex
+	registry     domain.AgentRegistry
 }
 
 // Ensure interface compliance
@@ -50,30 +51,44 @@ func NewSimpleAuthenticator(config Config) *SimpleAuthenticator {
 	}
 }
 
+// SetRegistry sets the agent registry for resolving persisted tokens
+func (a *SimpleAuthenticator) SetRegistry(r domain.AgentRegistry) {
+	a.tokenMu.Lock()
+	defer a.tokenMu.Unlock()
+	a.registry = r
+}
+
 // ValidateAgentToken checks if an agent's token is valid and not revoked
 func (a *SimpleAuthenticator) ValidateAgentToken(agentID, token string) error {
-	// First validate the token format
-	if err := a.ValidateToken(token); err != nil {
-		return err
+	a.tokenMu.RLock()
+	expectedHash, exists := a.agentTokens[agentID]
+	a.tokenMu.RUnlock()
+
+	if !exists && a.registry != nil {
+		// If not in cache (e.g. server restarted), check the registry
+		if agent, err := a.registry.Get(agentID); err == nil && agent != nil {
+			if agent.Token != "" {
+				expectedHash = a.hashToken(agent.Token)
+				exists = true
+
+				a.tokenMu.Lock()
+				a.agentTokens[agentID] = expectedHash
+				a.tokenMu.Unlock()
+			}
+		}
 	}
 
-	a.tokenMu.RLock()
-	defer a.tokenMu.RUnlock()
-
-	// Check if we have a per-agent token registered
-	expectedHash, exists := a.agentTokens[agentID]
-	if !exists {
-		// No per-agent token set - accept any valid token (first-time registration)
+	if exists {
+		// Verify token matches expected hash
+		tokenHash := a.hashToken(token)
+		if tokenHash != expectedHash {
+			return domain.ErrInvalidToken
+		}
 		return nil
 	}
 
-	// Verify token matches expected hash
-	tokenHash := a.hashToken(token)
-	if tokenHash != expectedHash {
-		return domain.ErrInvalidToken
-	}
-
-	return nil
+	// No per-agent token set - accept any valid pre-shared/signed token
+	return a.ValidateToken(token)
 }
 
 // GenerateAgentToken creates a unique token for an agent

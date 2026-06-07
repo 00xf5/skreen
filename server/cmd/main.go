@@ -41,7 +41,14 @@ func main() {
 	cfg := loadConfig()
 
 	authenticator := auth.NewSimpleAuthenticator(cfg.Auth)
-	agentRegistry := registry.NewInMemoryRegistry("agents.json")
+	// Use PERSIST_PATH env var if set, otherwise default to local agents.json for dev.
+	// On Render (ephemeral FS) leave PERSIST_PATH unset — the env var AGENTS_SEED is used instead.
+	persistPath := os.Getenv("PERSIST_PATH")
+	if persistPath == "" {
+		persistPath = "agents.json" // local dev fallback
+	}
+	agentRegistry := registry.NewInMemoryRegistry(persistPath)
+	authenticator.SetRegistry(agentRegistry)
 	inviteStore := invite.NewStore()
 
 	auditLogger, _ := audit.New(cfg.Audit.LogPath)
@@ -251,6 +258,11 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	// Dump current agent state before shutdown.
+	// On Render: copy this from your service logs into the AGENTS_SEED env var
+	// so agents survive the next deploy/restart.
+	agentRegistry.DumpSeed()
 
 	server.Shutdown(context.Background())
 	agentRegistry.Close()

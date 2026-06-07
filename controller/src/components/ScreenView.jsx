@@ -298,6 +298,9 @@ export function ScreenView({ agentId, onClose }) {
   // ── Advanced Controls ─────────────────────────────────────
   const handleSpecialKey = (key) => {
     if (!hasControl) return
+    if (key === 'cad') {
+      alert("Note: Sending Ctrl-Alt-Del is blocked by Windows security in user mode. It is only supported when the Skreen agent is running as an elevated SYSTEM service.")
+    }
     wsService.send({ type: 'input_special', agent_id: agentId, key })
   }
 

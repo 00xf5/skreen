@@ -25,7 +25,9 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
+	"io"
 	"os"
+	"os/exec"
 	"runtime"
 )
 
@@ -143,6 +145,12 @@ type Manager struct {
 	screenSess *screenshare.Session
 	controlMgr *control.Manager
 	fsMgr      *fs.Manager
+
+	// Session Helper Process State
+	helperMu     sync.Mutex
+	helperCmd    *exec.Cmd
+	helperStdin  io.WriteCloser
+	helperStdout io.ReadCloser
 }
 
 // NewManager creates a new connection manager
@@ -389,75 +397,170 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 			m.Send(result)
 
 		case MsgStartStream:
-			m.handleStartStream(msg)
+			// Resolve ICE servers
+			var iceServers []webrtc.ICEServer
+			if data, ok := msg.Data.(map[string]interface{}); ok {
+				if servers, ok := data["iceServers"].([]interface{}); ok {
+					for _, s := range servers {
+						if smap, ok := s.(map[string]interface{}); ok {
+							var ice webrtc.ICEServer
+							if urls, ok := smap["urls"].([]interface{}); ok {
+								for _, u := range urls {
+									if str, ok := u.(string); ok {
+										ice.URLs = append(ice.URLs, str)
+									}
+								}
+							}
+							if user, ok := smap["username"].(string); ok {
+								ice.Username = user
+							}
+							if cred, ok := smap["credential"].(string); ok {
+								ice.Credential = cred
+							}
+							iceServers = append(iceServers, ice)
+						}
+					}
+				}
+			}
+
+			if IsSession0() {
+				log.Println("[manager] Running in Session 0, redirecting to Session Helper...")
+				if err := m.StartHelperProcess(iceServers); err != nil {
+					log.Printf("[manager] Failed to start helper process: %v", err)
+					m.Send(Message{Type: MsgError, Error: "Failed to start helper process: " + err.Error()})
+				}
+			} else {
+				m.handleStartStream(msg)
+			}
 
 		case MsgStopStream:
-			m.handleStopStream()
+			if IsSession0() {
+				m.StopHelperProcess()
+			} else {
+				m.handleStopStream()
+			}
 
 		case MsgWebRTCAnswer:
-			m.sessionMu.Lock()
-			sess := m.screenSess
-			m.sessionMu.Unlock()
-			if sess != nil {
-				if err := sess.SetAnswer(msg.SDP); err != nil {
-					log.Printf("SetAnswer failed: %v", err)
-				} else {
-					sess.StartCapture()
-					m.Send(Message{
-						Type:    MsgStreamReady,
-						AgentID: m.config.Agent.ID,
-						Data: map[string]interface{}{
-							"displays": screenshare.NumDisplays(),
-						},
-					})
+			if IsSession0() {
+				m.SendToHelper(map[string]interface{}{"type": "webrtc_answer", "sdp": msg.SDP})
+			} else {
+				m.sessionMu.Lock()
+				sess := m.screenSess
+				m.sessionMu.Unlock()
+				if sess != nil {
+					if err := sess.SetAnswer(msg.SDP); err != nil {
+						log.Printf("SetAnswer failed: %v", err)
+					} else {
+						sess.StartCapture()
+						m.Send(Message{
+							Type:    MsgStreamReady,
+							AgentID: m.config.Agent.ID,
+							Data: map[string]interface{}{
+								"displays": screenshare.NumDisplays(),
+							},
+						})
+					}
 				}
 			}
 
 		case MsgICECandidate:
-			m.sessionMu.Lock()
-			sess := m.screenSess
-			m.sessionMu.Unlock()
-			if sess != nil && msg.Candidate != "" {
-				sess.AddICECandidate(msg.Candidate)
+			if IsSession0() {
+				m.SendToHelper(map[string]interface{}{"type": "ice_candidate", "candidate": msg.Candidate})
+			} else {
+				m.sessionMu.Lock()
+				sess := m.screenSess
+				m.sessionMu.Unlock()
+				if sess != nil && msg.Candidate != "" {
+					sess.AddICECandidate(msg.Candidate)
+				}
 			}
 
 		case MsgControlReq:
-			controllerID := "" // Since controller isn't passing its own ID right now, we can just use a dummy or let the manager handle it generally.
-			if m.controlMgr.RequestControl(controllerID) {
+			if IsSession0() {
+				// Approve control automatically or route through helper if already running
+				if m.SendToHelper(map[string]interface{}{"type": "control_request"}) {
+					// Route control request through helper
+				}
+				// Default approve control for session 0 commands
 				m.Send(Message{Type: MsgControlReq, AgentID: m.config.Agent.ID, Output: "approved"})
 			} else {
-				m.Send(Message{Type: MsgControlReq, AgentID: m.config.Agent.ID, Error: "denied"})
+				controllerID := ""
+				if m.controlMgr.RequestControl(controllerID) {
+					m.Send(Message{Type: MsgControlReq, AgentID: m.config.Agent.ID, Output: "approved"})
+				} else {
+					m.Send(Message{Type: MsgControlReq, AgentID: m.config.Agent.ID, Error: "denied"})
+				}
 			}
 
 		case MsgControlStop:
-			m.controlMgr.StopControl("")
+			if IsSession0() {
+				m.SendToHelper(map[string]interface{}{"type": "control_stop"})
+			} else {
+				m.controlMgr.StopControl("")
+			}
 		
 		case MsgInputMouse:
-			m.controlMgr.HandleMouse(msg.InputEvent, msg.X, msg.Y, msg.Button, msg.KeyState)
+			if IsSession0() {
+				m.SendToHelper(map[string]interface{}{
+					"type": "input_mouse", "event": msg.InputEvent, "x": msg.X, "y": msg.Y, "button": msg.Button, "key_state": msg.KeyState,
+				})
+			} else {
+				m.controlMgr.HandleMouse(msg.InputEvent, msg.X, msg.Y, msg.Button, msg.KeyState)
+			}
 
 		case MsgInputKeyboard:
-			m.controlMgr.HandleKeyboard(msg.Key, msg.KeyState)
+			if IsSession0() {
+				m.SendToHelper(map[string]interface{}{
+					"type": "input_keyboard", "key": msg.Key, "key_state": msg.KeyState,
+				})
+			} else {
+				m.controlMgr.HandleKeyboard(msg.Key, msg.KeyState)
+			}
 
 		case MsgInputSpecial:
-			m.controlMgr.HandleSpecialKey(msg.Key)
+			if IsSession0() {
+				m.SendToHelper(map[string]interface{}{
+					"type": "input_special", "key": msg.Key,
+				})
+			} else {
+				m.controlMgr.HandleSpecialKey(msg.Key)
+			}
 
 		case MsgBlockInput:
 			if block, ok := msg.Data.(bool); ok {
-				m.controlMgr.SetBlockInput(block)
+				if IsSession0() {
+					m.SendToHelper(map[string]interface{}{
+						"type": "block_input", "data": block,
+					})
+				} else {
+					m.controlMgr.SetBlockInput(block)
+				}
 			}
 
 		case MsgSetHiddenMode:
 			if hidden, ok := msg.Data.(bool); ok {
-				m.controlMgr.SetHiddenMode(hidden)
+				if IsSession0() {
+					m.SendToHelper(map[string]interface{}{
+						"type": "set_hidden_mode", "data": hidden,
+					})
+				} else {
+					m.controlMgr.SetHiddenMode(hidden)
+				}
 			}
 
 		case MsgSetDisplay:
-			m.sessionMu.Lock()
-			sess := m.screenSess
-			m.sessionMu.Unlock()
-			if sess != nil {
-				if idx, ok := msg.Data.(float64); ok {
-					sess.SetDisplay(int(idx))
+			if idx, ok := msg.Data.(float64); ok {
+				if IsSession0() {
+					m.SendToHelper(map[string]interface{}{
+						"type": "set_display", "data": idx,
+					})
+				} else {
+					m.sessionMu.Lock()
+					sess := m.screenSess
+					m.sessionMu.Unlock()
+					if sess != nil {
+						sess.SetDisplay(int(idx))
+					}
 				}
 			}
 
@@ -596,10 +699,18 @@ func (m *Manager) readLoop(done chan<- struct{}) {
 			if msg.Token != "" {
 				log.Printf("📥 Received unique token from server")
 				m.config.Security.Token = msg.Token
-				// Persist the token so it survives restarts
-				configPath := "agent.json" // Fallback to current dir
+				// Save to %ProgramData%\Skreen\agent.json so the Windows Service
+				// (running as SYSTEM) and interactive user mode share the same file.
+				programData := os.Getenv("ProgramData")
+				var configPath string
+				if programData != "" {
+					configPath = filepath.Join(programData, "Skreen", "agent.json")
+					os.MkdirAll(filepath.Dir(configPath), 0700)
+				} else {
+					configPath = "agent.json"
+				}
 				if err := m.config.SaveToFile(configPath); err != nil {
-					log.Printf("⚠️  Failed to save token to file: %v", err)
+					log.Printf("⚠️  Failed to save token to %s: %v", configPath, err)
 				} else {
 					log.Printf("✅ Token persisted to %s", configPath)
 				}
@@ -677,6 +788,9 @@ func (m *Manager) Close() {
 
 	// Always cleanup screenshare session if connection drops
 	m.handleStopStream()
+	if IsSession0() {
+		m.StopHelperProcess()
+	}
 }
 
 // waitAndRetry implements exponential backoff with jitter
@@ -768,6 +882,22 @@ func (m *Manager) handleStartStream(msg Message) {
 	}
 
 	m.screenSess = sess
+
+	// Wire hidden-desktop capture hook so user-mode runs behave identically to helper process.
+	sess.OnBeforeCapture = func() func() {
+		if m.controlMgr.IsHidden() {
+			runtime.LockOSThread()
+			if err := control.SwitchThreadToDesktop(true); err == nil {
+				return func() {
+					control.SwitchThreadToDesktop(false)
+					runtime.UnlockOSThread()
+				}
+			}
+			runtime.UnlockOSThread()
+		}
+		return nil
+	}
+
 	sdp, err := sess.CreateOffer()
 	if err != nil {
 		log.Printf("Failed to create offer: %v", err)
