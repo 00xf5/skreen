@@ -267,6 +267,34 @@ export function ScreenView({ agentId, onClose }) {
     wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'move', x, y })
   }
 
+  const getNormalizedCoordsTouch = (e, el) => {
+    if (!e.touches || e.touches.length === 0) return { x: 0, y: 0 }
+    const touch = e.touches[0]
+    return getNormalizedCoords({ clientX: touch.clientX, clientY: touch.clientY }, el)
+  }
+
+  const handleTouchMove = (e) => {
+    if (isFullscreen) resetToolbarTimer()
+    if (!hasControl || !imgRef.current) return
+    const now = Date.now()
+    if (now - lastMoveRef.current < 30) return
+    lastMoveRef.current = now
+    const { x, y } = getNormalizedCoordsTouch(e, imgRef.current)
+    wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'move', x, y })
+  }
+
+  const handleTouchStart = (e) => {
+    if (!hasControl || !imgRef.current) return
+    const { x, y } = getNormalizedCoordsTouch(e, imgRef.current)
+    wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'move', x, y })
+    wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'click', button: 'left', state: 'down' })
+  }
+
+  const handleTouchEnd = (e) => {
+    if (!hasControl) return
+    wsService.send({ type: 'input_mouse', agent_id: agentId, event: 'click', button: 'left', state: 'up' })
+  }
+
   const handleWheel = (e) => {
     if (!hasControl) return
     e.preventDefault()
@@ -334,6 +362,7 @@ export function ScreenView({ agentId, onClose }) {
       ref={containerRef}
       className={`screen-view ${isFullscreen ? 'fullscreen-mode' : ''}`}
       onMouseMove={handleMouseMove}
+      onTouchMove={handleTouchMove}
     >
       {/* ── Header toolbar (always shown when not fullscreen) ── */}
       {!isFullscreen && (
@@ -450,6 +479,8 @@ export function ScreenView({ agentId, onClose }) {
           alt="Agent Screen"
           onMouseDown={(e) => handleMouseAction(e, 'down')}
           onMouseUp={(e) => handleMouseAction(e, 'up')}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
           onContextMenu={(e) => e.preventDefault()}
           draggable={false}
