@@ -537,7 +537,7 @@ func (h *Hub) readAgentMessages(client *domain.ClientConnection) {
 			h.SendToControllers(msg)
 
 		// Phase 3: File Transfer (Agent -> Controller)
-		case domain.MsgFileReq, domain.MsgFileChunk, domain.MsgFileAck:
+		case domain.MsgFileReq, domain.MsgFileChunk, domain.MsgFileAck, domain.MsgFileList, domain.MsgFileOp:
 			msg.AgentID = client.AgentID
 			h.SendToControllers(msg)
 
@@ -619,7 +619,7 @@ func (h *Hub) readControllerMessages(client *domain.ClientConnection) {
 			}
 
 		// Phase 3: File Transfer (Controller -> Agent)
-		case domain.MsgFileReq, domain.MsgFileChunk, domain.MsgFileAck:
+		case domain.MsgFileReq, domain.MsgFileChunk, domain.MsgFileAck, domain.MsgFileList, domain.MsgFileOp:
 			if msg.AgentID == "" {
 				h.sendErrorToController(client, "agent_id required for file transfer")
 				continue

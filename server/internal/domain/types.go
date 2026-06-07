@@ -47,6 +47,8 @@ const (
 	MsgFileReq   MessageType = "file_req"
 	MsgFileChunk MessageType = "file_chunk"
 	MsgFileAck   MessageType = "file_ack"
+	MsgFileList  MessageType = "file_list"
+	MsgFileOp    MessageType = "file_op"
 
 	// Phase 3.1: Clipboard + Process + Quality + Status
 	MsgClipboardGet  MessageType = "clipboard_get"
